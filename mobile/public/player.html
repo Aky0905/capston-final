@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="strict-origin-when-cross-origin"><title>Feelody YouTube Player</title>
+<style>html,body,#player{margin:0;width:100%;height:100%;background:#151a32;color:white;font:14px sans-serif}#error{padding:24px;line-height:1.7}</style></head>
+<body><div id="player"></div><script>
+const id=new URLSearchParams(location.search).get('v');
+let player;
+function fail(){document.getElementById('player').textContent='이 영상을 재생할 수 없어요. YouTube Music에서 열어주세요.';window.ReactNativeWebView?.postMessage(JSON.stringify({error:true}));}
+function onYouTubeIframeAPIReady(){
+ if(!id||!/^[\w-]{11}$/.test(id)){fail();return;}
+ player=new YT.Player('player',{videoId:id,playerVars:{playsinline:1,origin:location.origin},events:{onError:fail}});
+}
+window.pauseVideo=()=>player?.pauseVideo?.();
+document.addEventListener('visibilitychange',()=>{if(document.hidden)window.pauseVideo();});
+window.addEventListener('pagehide',window.pauseVideo);
+</script><script src="https://www.youtube.com/iframe_api"></script></body></html>
