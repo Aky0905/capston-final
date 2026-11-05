@@ -5,11 +5,11 @@ import { AudioModule, RecordingPresets, setAudioModeAsync, useAudioRecorder, use
 import Svg, { Circle } from 'react-native-svg';
 import type { Analysis, Entry, Library, Playlist, Track } from './domain';
 import { calendarCells, localDate, moodColors, moodFaces, monthStats, streak } from './domain';
-import { cloudMode, tracks, transcribe } from './services';
+import { cloudMode, tracks, savedTracks, transcribe } from './services';
 import { Button, C, Card, Cloud, Cover, Empty, Icon, IconButton, MoodChip, s, TrackRow } from './ui';
 
-export function Home({ library, input, play, openLibrary, profile }: { library: Library; input: () => void; play: (t: Track) => void; openLibrary: () => void; profile: () => void }) {
-  const last = tracks.find(t => t.id === library.recent[0]);
+export function Home({ library, input, play, collection, openLibrary, profile }: { library: Library; input: () => void; collection: (t: Track) => void; play: (t: Track) => void; openLibrary: () => void; profile: () => void }) {
+  const last = [...tracks,...savedTracks].find(t => t.id === library.recent[0]);
   const days = streak(library.entries);
   return <ScrollView style={s.page} contentContainerStyle={{ paddingBottom: 26 }}>
     <ImageBackground source={require('../assets/sky.png')} style={{ height: 345 }} imageStyle={{ opacity: 0.96 }}>
@@ -25,7 +25,7 @@ export function Home({ library, input, play, openLibrary, profile }: { library: 
       {!cloudMode && <Text style={[s.small, { marginTop: 13, fontSize: 11 }]}>체험 모드 · 분석 예시이며 실제 AI 분석이 아닙니다.</Text>}
       <View style={[s.sectionRow, { marginTop: 26 }]}><Text style={[s.heading, { fontSize: 18 }]}>오늘의 추천 플레이리스트</Text><Pressable onPress={openLibrary} accessibilityRole="button"><Text style={{ color: '#7772AE', fontSize: 12 }}>더보기 ›</Text></Pressable></View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 13 }}>
-        {tracks.map(t => <Pressable key={t.id} onPress={() => play(t)} accessibilityRole="button" style={{ width: 128 }}><Cover track={t} size={128} /><Text style={[s.trackTitle, { fontSize: 14, marginTop: 8 }]} numberOfLines={1}>{t.tone}</Text><Text style={[s.small, { fontSize: 11 }]}>{t.moods.slice(0, 2).join(' · ')}</Text></Pressable>)}
+        {tracks.map(t => <Pressable key={t.id} onPress={() => collection(t)} accessibilityRole="button" style={{ width: 128 }}><Cover track={t} size={128} /><Text style={[s.trackTitle, { fontSize: 14, marginTop: 8 }]} numberOfLines={1}>{t.tone}</Text><Text style={[s.small, { fontSize: 11 }]}>{t.moods.slice(0, 2).join(' · ')}</Text></Pressable>)}
       </ScrollView>
       <Card style={{ marginTop: 26, paddingVertical: 10 }}><Text style={[s.heading, { fontSize: 17, marginTop: 3 }]}>최근 확인한 음악</Text>{last ? <TrackRow track={last} onPress={() => play(last)} /> : <Text style={[s.small, { paddingVertical: 16 }]}>마음에 드는 음악을 골라보세요.</Text>}</Card>
     </View>
@@ -89,7 +89,7 @@ export function Analyzing() {
 export function Result({ result, name, save, saving, back, play, stored, remove }: { result: Entry; name: string; save: () => void; saving: boolean; back: () => void; play: (t: Track) => void; stored: boolean; remove: () => void }) {
   return <LinearGradient colors={['#FFF9E3', '#FFFDF4', '#FFFFFF']} style={s.page}><ScrollView contentContainerStyle={[s.content, { flexGrow: 1 }]}><View style={{ alignSelf: 'flex-start', marginLeft: -12 }}><IconButton name="chevron-back" label="뒤로" onPress={back} /></View><View style={{ alignItems: 'flex-end', marginTop: 5, marginBottom: -10 }}><Cloud size={140} /></View><Text style={s.title}>{name}님,</Text><Text style={[s.body, { fontSize: 19, lineHeight: 32, marginTop: 20, marginBottom: 24 }]}>{result.message}</Text>
     {result.source === 'demo' && <Text style={[s.small, { marginBottom: 14 }]}>체험용 분석 예시 · 실제 OpenAI 분석이 아닙니다.</Text>}
-    {result.tracks[0] && <Card><TrackRow track={result.tracks[0]} onPress={() => play(result.tracks[0]!)} /></Card>}
+    {result.tracks[0] && <Pressable accessibilityRole="button" onPress={() => play(result.tracks[0]!)}><Card><Text style={s.small}>오늘의 마음을 위한 음악</Text><Text style={[s.heading,{marginVertical:8}]}>{result.musicMood} · {result.tracks.length}곡</Text><Text style={{color:C.purple}}>추천곡 보기  ›</Text></Card></Pressable>}
     <Card style={{ marginTop: 22, minHeight: 140 }}><Text style={[s.heading, { fontSize: 17 }]}>이런 감정이 느껴졌어요</Text><View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 9, marginTop: 20 }}>{[result.primaryEmotion, ...result.secondaryEmotions].map(mood => <MoodChip key={mood} mood={mood} />)}</View></Card>
     {stored && <Card style={{ marginTop: 18 }}><Text style={s.small}>{result.localDate}의 마음</Text><Text style={[s.body, { marginTop: 8 }]}>{result.text}</Text></Card>}
     <Text style={[s.small, { marginTop: 18, marginBottom: 25, textAlign: 'center', fontSize: 11 }]}>감정 해석은 참고용이며 의료적 진단이 아닙니다.</Text><View style={{ flex: 1 }} />
@@ -133,15 +133,31 @@ export function Graph({ entries, back }: { entries: Entry[]; back: () => void })
 export function LibraryScreen({ library, play, create, open, toggleFavorite }: { library: Library; play: (t: Track) => void; create: () => void; open: (p: Playlist) => void; toggleFavorite: (id: string) => void }) {
   const [tab, setTab] = useState<'mine' | 'likes'>('mine');
   return <ScrollView style={s.page} contentContainerStyle={s.content}><Text style={s.title}>플레이리스트</Text><View style={{ flexDirection: 'row', borderBottomWidth: 1, borderColor: C.border, marginTop: 24, marginBottom: 24 }}>{(['mine', 'likes'] as const).map(t => <Pressable key={t} onPress={() => setTab(t)} style={{ flex: 1, alignItems: 'center', paddingVertical: 16, borderBottomWidth: 2, borderColor: tab === t ? C.ink : 'transparent' }}><Text style={{ color: tab === t ? C.ink : C.muted, fontWeight: '600' }}>{t === 'mine' ? '내 플레이리스트' : '좋아요한 음악'}</Text></Pressable>)}</View>
-    {tab === 'mine' ? <><Button title="＋ 새 플레이리스트 만들기" onPress={create} subtle />{library.playlists.length ? library.playlists.map(p => { const cover = tracks.find(t => t.id === p.trackIds[0]) || tracks[0]!; return <Pressable key={p.id} onPress={() => open(p)} style={{ flexDirection: 'row', alignItems: 'center', gap: 16, paddingVertical: 22, borderBottomWidth: 1, borderColor: '#F0F0F8' }}><Cover track={cover} size={74} /><View style={{ flex: 1 }}><Text style={s.trackTitle}>{p.name}</Text><Text style={[s.small, { marginTop: 6 }]}>{p.trackIds.length}곡 · 생성일 {p.createdAt.slice(0, 10).replace(/-/g, '.')}</Text></View><Icon name="chevron-forward" size={20} /></Pressable>; }) : <Empty title="나만의 음악을 모아보세요" detail="플레이리스트를 만들고 음악 화면에서 곡을 추가할 수 있어요." />}</> : <>{tracks.filter(t => library.favorites.includes(t.id)).map(t => <TrackRow key={t.id} track={t} onPress={() => play(t)} action={<IconButton name="heart" color={C.purple} label="좋아요 취소" onPress={() => toggleFavorite(t.id)} />} />)}{!library.favorites.length && <Empty title="아직 좋아요한 음악이 없어요" detail="음악 화면에서 하트를 눌러 마음에 드는 곡을 모아보세요." />}</>}
+    {tab === 'mine' ? <><Button title="＋ 새 플레이리스트 만들기" onPress={create} subtle />{library.playlists.length ? library.playlists.map(p => { const cover = [...tracks,...savedTracks].find(t => t.id === p.trackIds[0]) || tracks[0]!; return <Pressable key={p.id} onPress={() => open(p)} style={{ flexDirection: 'row', alignItems: 'center', gap: 16, paddingVertical: 22, borderBottomWidth: 1, borderColor: '#F0F0F8' }}><Cover track={cover} size={74} /><View style={{ flex: 1 }}><Text style={s.trackTitle}>{p.name}</Text><Text style={[s.small, { marginTop: 6 }]}>{p.trackIds.length}곡 · 생성일 {p.createdAt.slice(0, 10).replace(/-/g, '.')}</Text></View><Icon name="chevron-forward" size={20} /></Pressable>; }) : <Empty title="나만의 음악을 모아보세요" detail="플레이리스트를 만들고 음악 화면에서 곡을 추가할 수 있어요." />}</> : <>{[...tracks,...savedTracks].filter(t => library.favorites.includes(t.id)).map(t => <TrackRow key={t.id} track={t} onPress={() => play(t)} action={<IconButton name="heart" color={C.purple} label="좋아요 취소" onPress={() => toggleFavorite(t.id)} />} />)}{!library.favorites.length && <Empty title="아직 좋아요한 음악이 없어요" detail="음악 화면에서 하트를 눌러 마음에 드는 곡을 모아보세요." />}</>}
   </ScrollView>;
 }
 
 export function PlaylistDetail({ playlist, back, play, removeTrack, rename, remove }: { playlist: Playlist; back: () => void; play: (t: Track) => void; removeTrack: (id: string) => void; rename: () => void; remove: () => void }) {
-  return <ScrollView style={s.page} contentContainerStyle={s.content}><View style={[s.sectionRow, { marginHorizontal: -12 }]}><IconButton name="chevron-back" label="목록으로" onPress={back} /><IconButton name="create-outline" label="이름 변경" onPress={rename} /></View><Text style={s.title}>{playlist.name}</Text><Text style={[s.small, { marginTop: 10, marginBottom: 18 }]}>{playlist.trackIds.length}곡 · Feelody에 저장한 플레이리스트</Text>{playlist.trackIds.map(id => tracks.find(t => t.id === id)).filter((t): t is Track => !!t).map(t => <TrackRow key={t.id} track={t} onPress={() => play(t)} action={<IconButton name="remove-circle-outline" label={`${t.title} 목록에서 제거`} onPress={() => removeTrack(t.id)} />} />)}{!playlist.trackIds.length && <Empty title="첫 곡을 추가해보세요" detail="음악 재생 화면에서 ‘플레이리스트’를 누르면 곡을 담을 수 있어요." />}<View style={{ marginTop: 30 }}><Button title="플레이리스트 삭제" onPress={remove} subtle /></View></ScrollView>;
+  return <ScrollView style={s.page} contentContainerStyle={s.content}><View style={[s.sectionRow, { marginHorizontal: -12 }]}><IconButton name="chevron-back" label="목록으로" onPress={back} /><IconButton name="create-outline" label="이름 변경" onPress={rename} /></View><Text style={s.title}>{playlist.name}</Text><Text style={[s.small, { marginTop: 10, marginBottom: 18 }]}>{playlist.trackIds.length}곡 · Feelody에 저장한 플레이리스트</Text>{playlist.trackIds.map(id => [...tracks,...savedTracks].find(t => t.id === id)).filter((t): t is Track => !!t).map(t => <TrackRow key={t.id} track={t} onPress={() => play(t)} action={<IconButton name="remove-circle-outline" label={`${t.title} 목록에서 제거`} onPress={() => removeTrack(t.id)} />} />)}{!playlist.trackIds.length && <Empty title="첫 곡을 추가해보세요" detail="음악 재생 화면에서 ‘플레이리스트’를 누르면 곡을 담을 수 있어요." />}<View style={{ marginTop: 30 }}><Button title="플레이리스트 삭제" onPress={remove} subtle /></View></ScrollView>;
 }
 
 export function Profile({ library, saveName, logout, clear, busy }: { library: Library; saveName: (name: string) => void; logout: () => void; clear: () => void; busy: boolean }) {
   const [name, setName] = useState(library.name);
   return <ScrollView style={s.page} contentContainerStyle={s.content}><Text style={s.title}>프로필</Text><View style={{ alignItems: 'center', marginVertical: 30 }}><Cloud size={135} /><Text style={[s.heading, { marginTop: 16 }]}>{library.name}님의 작은 쉼터</Text></View><Card><Text style={[s.trackTitle, { marginBottom: 14 }]}>어떻게 불러드릴까요?</Text><TextInput accessibilityLabel="닉네임" style={s.input} maxLength={20} value={name} onChangeText={setName} /><View style={{ marginTop: 14 }}><Button title="이름 저장" onPress={() => saveName(name.trim())} disabled={!name.trim() || name.trim() === library.name || busy} /></View></Card><Card style={{ marginTop: 18 }}><Text style={s.trackTitle}>함께 기록한 마음</Text><Text style={[s.title, { marginTop: 12 }]}>{library.entries.length}<Text style={s.body}> 회</Text></Text><Text style={[s.small, { marginTop: 12 }]}>{cloudMode ? '계정에 기록을 저장하고 있어요.' : '체험 모드 · 이 기기에만 저장됩니다.\n음성 인식과 실제 AI 분석에는 연동 설정이 필요해요.'}</Text></Card><Text style={[s.small, { marginVertical: 22, fontSize: 12 }]}>Feelody는 감정 기록과 음악 탐색을 돕는 서비스입니다. 의료적 진단이나 전문 심리치료를 제공하지 않습니다.</Text><Button title={cloudMode ? '로그아웃' : '체험 데이터 모두 지우기'} onPress={cloudMode ? logout : clear} subtle disabled={busy} /></ScrollView>;
+}
+
+export type Mix = { title: string; reason: string; songs: Track[] };
+export function MixDetail({ mix, back, play, save, saved, busy, liked, toggle }: { mix: Mix; back: () => void; play: (t: Track) => void; save: () => void; saved: boolean; busy: boolean; liked: string[]; toggle: (id: string) => void }) {
+  return <ScrollView style={s.page}>
+    <ImageBackground source={require('../assets/sky.png')} style={{padding:24}}>
+      <IconButton name="chevron-back" label="추천 목록 닫기" onPress={back} />
+      <View style={{alignItems:'flex-end'}}><Cloud size={100}/></View>
+      <Text style={s.title}>{mix.title}</Text>
+      <Text style={[s.body,{marginTop:10}]}>{mix.reason}</Text>
+    </ImageBackground>
+    <View style={s.content}><Button title={saved ? '내 플레이리스트에 저장됨' : '＋ 내 플레이리스트에 저장'} disabled={saved || busy} onPress={save}/>
+      <Text style={[s.heading,{marginTop:30,marginBottom:10}]}>추천곡 · {mix.songs.length}곡</Text>
+      {mix.songs.map(t => <TrackRow key={t.id} track={t} onPress={() => play(t)} action={<IconButton label={liked.includes(t.id)?'좋아요 취소':'좋아요'} name={liked.includes(t.id)?'heart':'heart-outline'} color={C.purple} onPress={() => toggle(t.id)}/>}/>)}
+    </View>
+  </ScrollView>;
 }

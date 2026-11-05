@@ -17,6 +17,7 @@ import java.util.*;
 public class OpenAiService {
     private static final Set<String> MOODS = Set.of("기쁨", "슬픔", "분노", "불안", "평온", "설렘", "기타");
     private final HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+    @org.springframework.beans.factory.annotation.Autowired private YoutubeSearch youtube;
     private final String key, baseUrl, model, transcriptionModel;
     private final ObjectMapper mapper;
     private final List<Map<String, Object>> catalog;
@@ -81,6 +82,10 @@ public class OpenAiService {
             }
             if (secondary.size() > 2) throw new ApiException(502, "분석 결과 형식이 올바르지 않아요.");
             var recommendations = catalog.stream().filter(t -> ((List<?>)t.get("moods")).contains(primary)).toList();
+            if (youtube != null) {
+                var live = youtube.search(primary, musicMood);
+                if (!live.isEmpty()) recommendations = live;
+            }
             if (recommendations.isEmpty()) recommendations = catalog.subList(0, Math.min(2, catalog.size()));
             return Map.of("primaryEmotion", primary, "secondaryEmotions", secondary, "message", message,
                     "musicMood", musicMood, "tracks", recommendations, "source", "openai");

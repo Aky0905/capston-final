@@ -7,6 +7,8 @@ import type { Analysis, Library, Track } from './domain';
 import { emptyLibrary, MOODS } from './domain';
 import catalog from './catalog.json';
 
+export let savedTracks: Track[] = [];
+export function remember(items: Track[]) { savedTracks = [...new Map([...savedTracks,...items.filter(t=>t.id.startsWith("yt-"))].map(t=>[t.id,t])).values()]; }
 export const tracks = catalog as Track[];
 export const cloudMode = process.env.EXPO_PUBLIC_MODE === 'cloud';
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
@@ -42,6 +44,7 @@ if (supabase && Platform.OS !== 'web') AppState.addEventListener('change', state
 });
 const LOCAL_KEY = 'feelody.demo.library.v1';
 export async function loadLibrary(): Promise<Library> {
+  savedTracks = [];
   if (!cloudMode) {
     const saved = await AsyncStorage.getItem(LOCAL_KEY);
     return saved ? { ...emptyLibrary(), ...JSON.parse(saved) } : emptyLibrary();
@@ -49,9 +52,11 @@ export async function loadLibrary(): Promise<Library> {
   if (!supabase) throw new Error('Supabase 설정을 확인해주세요.');
   const { data, error } = await supabase.from('libraries').select('data').maybeSingle();
   if (error) throw new Error('기록을 불러오지 못했어요. 잠시 후 다시 시도해주세요.');
+  remember(data?.data?.savedTracks || []);
   return data ? { ...emptyLibrary(), ...data.data } : emptyLibrary();
 }
 export async function persistLibrary(library: Library): Promise<void> {
+  library = { ...library, savedTracks: savedTracks.filter(t => library.favorites.includes(t.id) || library.recent.includes(t.id) || library.playlists.some(p => p.trackIds.includes(t.id)) || library.entries.some(e => e.tracks.some(x => x.id === t.id))) };
   if (!cloudMode) { await AsyncStorage.setItem(LOCAL_KEY, JSON.stringify(library)); return; }
   if (!supabase) throw new Error('Supabase 설정이 필요해요.');
   const { data: { user } } = await supabase.auth.getUser();
@@ -79,7 +84,7 @@ async function request(path: string, body: string | FormData): Promise<any> {
   } finally { clearTimeout(timeout); }
 }
 export async function analyze(text: string): Promise<Analysis> {
-  if (cloudMode) return request('analyze', JSON.stringify({ text }));
+  if (cloudMode) { const result: Analysis = await request('analyze', JSON.stringify({ text })); remember(result.tracks); return result; }
   const mood = /불안|걱정|무서/.test(text) ? '불안' : /화나|짜증|분노/.test(text) ? '분노' : /우울|슬프|힘들|지쳐|지친/.test(text) ? '슬픔' : /설레|설렘|기대/.test(text) ? '설렘' : /기쁘|행복|신나|좋아/.test(text) ? '기쁨' : '평온';
   return { primaryEmotion: mood, secondaryEmotions: [], message: '오늘의 마음을 들려줘서 고마워요. 잠깐 숨을 고르고, 당신을 위한 음악과 함께 쉬어가도 괜찮아요.', musicMood: '포근한 위로', tracks: tracks.filter(t => t.moods.includes(mood)), source: 'demo' };
 }

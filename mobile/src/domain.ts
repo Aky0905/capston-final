@@ -1,10 +1,10 @@
 export const MOODS = ['기쁨', '슬픔', '분노', '불안', '평온', '설렘', '기타'] as const;
 export type Mood = typeof MOODS[number];
-export type Track = { id: string; title: string; artist: string; videoId: string; moods: Mood[]; tone: string; color: string };
+export type Track = { thumbnail?: string; id: string; title: string; artist: string; videoId: string; moods: Mood[]; tone: string; color: string };
 export type Analysis = { primaryEmotion: Mood; secondaryEmotions: Mood[]; message: string; musicMood: string; tracks: Track[]; source: 'openai' | 'demo' };
 export type Entry = Analysis & { id: string; text: string; createdAt: string; localDate: string };
 export type Playlist = { id: string; name: string; trackIds: string[]; createdAt: string };
-export type Library = { entries: Entry[]; favorites: string[]; playlists: Playlist[]; recent: string[]; name: string };
+export type Library = { savedTracks?: Track[]; entries: Entry[]; favorites: string[]; playlists: Playlist[]; recent: string[]; name: string };
 export const emptyLibrary = (): Library => ({ entries: [], favorites: [], playlists: [], recent: [], name: '지은' });
 export const moodColors: Record<Mood, string> = { 기쁨: '#FFD574', 슬픔: '#96BCF8', 분노: '#FFA3AD', 불안: '#BEA5EE', 평온: '#9BD6CB', 설렘: '#E6ABDA', 기타: '#B5BDCE' };
 export const moodFaces: Record<Mood, string> = { 기쁨: '☺', 슬픔: '☹', 분노: '≋', 불안: '∿', 평온: '◡', 설렘: '♡', 기타: '·' };

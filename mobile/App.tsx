@@ -4,9 +4,9 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as Crypto from 'expo-crypto';
 import type { Session } from '@supabase/supabase-js';
-import { Analyzing, Graph, Home, InputScreen, LibraryScreen, PlaylistDetail, Profile, Records, Result } from './src/screens';
+import { MixDetail, type Mix, Analyzing, Graph, Home, InputScreen, LibraryScreen, PlaylistDetail, Profile, Records, Result } from './src/screens';
 import { Player } from './src/Player';
-import { analyze, cloudMode, configReady, loadLibrary, persistLibrary, supabase, validateAnalysis } from './src/services';
+import { tracks, analyze, cloudMode, configReady, loadLibrary, persistLibrary, supabase, validateAnalysis } from './src/services';
 import { emptyLibrary, localDate } from './src/domain';
 import type { Entry, Library, Track } from './src/domain';
 import { Button, C, Cloud, Icon, IconButton, IconName, s } from './src/ui';
@@ -29,6 +29,7 @@ function Main() {
   const [text, setText] = useState('');
   const [pending, setPending] = useState<Entry | null>(null);
   const [selectedEntry, setSelectedEntry] = useState<Entry | null>(null);
+  const [mix,setMix] = useState<Mix | null>(null);
   const [song, setSong] = useState<Track | null>(null);
   const [playlistId, setPlaylistId] = useState<string | null>(null);
   const [playlistDialog, setPlaylistDialog] = useState<'create' | 'rename' | 'pick' | null>(null);
@@ -48,7 +49,7 @@ function Main() {
   }, []);
   useEffect(() => {
     let alive = true;
-    setLoaded(false); setLoadError(''); setSong(null); setPending(null); setSelectedEntry(null); setScreen('home');
+    setLoaded(false); setLoadError(''); setMix(null); setSong(null); setPending(null); setSelectedEntry(null); setScreen('home');
     const blank = emptyLibrary(); current.current = blank; setLibrary(blank);
     if (cloudMode && !session) return;
     void loadLibrary().then(next => { if (alive) { current.current = next; setLibrary(next); setLoaded(true); } }).catch(e => { if (alive) setLoadError(e instanceof Error ? e.message : '기록을 불러오지 못했어요.'); });
@@ -59,12 +60,13 @@ function Main() {
       if (dialog) { setDialog(null); return true; }
       if (playlistDialog) { setPlaylistDialog(null); return true; }
       if (song) { setSong(null); return true; }
+      if (mix) { setMix(null); return true; }
       if (screen === 'analyzing') return true;
       if (screen === 'home') return false;
       setScreen(screen === 'graph' ? 'records' : screen === 'playlist' ? 'library' : 'home'); return true;
     });
     return () => subscription.remove();
-  }, [screen, song, dialog, playlistDialog]);
+  }, [screen, song, mix, dialog, playlistDialog]);
 
   async function mutate(update: (lib: Library) => Library, done?: () => void) {
     if (lock.current) return;
@@ -105,13 +107,19 @@ function Main() {
     if (loadError) return <View style={[s.content, { flex: 1, justifyContent: 'center', gap: 20 }]}><Text style={s.heading}>기록을 불러오지 못했어요</Text><Text style={s.body}>{loadError}</Text><Button title="다시 시도" onPress={() => setRetry(n => n + 1)} />{cloudMode && <Button title="로그아웃" onPress={() => void logout()} subtle />}</View>;
     if (!loaded) return <ActivityIndicator style={{ flex: 1 }} color={C.purple} />;
     if (song) return <Player track={song} close={() => setSong(null)} favorite={library.favorites.includes(song.id)} toggleFavorite={() => favorite(song.id)} addToPlaylist={() => setPlaylistDialog('pick')} play={play} />;
+    if (mix) {
+      const ids = mix.songs.map(t => t.id);
+      const saved = library.playlists.some(p => p.name === mix.title && p.trackIds.join() === ids.join());
+      return <MixDetail mix={mix} back={() => setMix(null)} play={play} liked={library.favorites} toggle={favorite} saved={saved} busy={busy}
+        save={() => void mutate(lib => ({...lib,playlists:[{id:Crypto.randomUUID(),name:mix.title,trackIds:ids,createdAt:new Date().toISOString()},...lib.playlists]}))}/>;
+    }
     switch (screen) {
-      case 'home': return <Home library={library} input={() => { setText(''); setScreen('input'); }} play={play} openLibrary={() => setScreen('library')} profile={() => setScreen('profile')} />;
+      case 'home': return <Home library={library} input={() => { setText(''); setScreen('input'); }} play={play} collection={t => setMix({title:t.tone, reason:t.moods.slice(0,2).join(' · ')+'의 분위기와 어울리는 곡을 모았어요.', songs:[t,...tracks.filter(x => x.id !== t.id && x.moods.some(m => t.moods.includes(m)))]})} openLibrary={() => setScreen('library')} profile={() => setScreen('profile')} />;
       case 'input': return <InputScreen text={text} setText={t => setText(t.slice(0, 500))} analyze={() => void runAnalysis()} back={() => setScreen('home')} />;
       case 'analyzing': return <Analyzing />;
       case 'result': {
         const entry = selectedEntry || pending;
-        return entry && <Result result={entry} name={library.name} play={play} back={() => setScreen(selectedEntry ? 'records' : 'input')} saving={busy} stored={!!selectedEntry} save={() => void mutate(lib => ({ ...lib, entries: lib.entries.some(e => e.id === entry.id) ? lib.entries : [entry, ...lib.entries] }), () => { setPending(null); setText(''); setScreen('records'); })} remove={() => setDialog({ title: '이 기록을 삭제할까요?', message: '삭제한 기록은 되돌릴 수 없어요.', confirm: () => void mutate(lib => ({ ...lib, entries: lib.entries.filter(e => e.id !== entry.id) }), () => { setSelectedEntry(null); setScreen('records'); }) })} />;
+        return entry && <Result result={entry} name={library.name} play={() => setMix({title:entry.musicMood,reason:entry.primaryEmotion+'의 마음에 어울리는 음악이에요.',songs:entry.tracks})} back={() => setScreen(selectedEntry ? 'records' : 'input')} saving={busy} stored={!!selectedEntry} save={() => void mutate(lib => ({ ...lib, entries: lib.entries.some(e => e.id === entry.id) ? lib.entries : [entry, ...lib.entries] }), () => { setPending(null); setText(''); setScreen('records'); })} remove={() => setDialog({ title: '이 기록을 삭제할까요?', message: '삭제한 기록은 되돌릴 수 없어요.', confirm: () => void mutate(lib => ({ ...lib, entries: lib.entries.filter(e => e.id !== entry.id) }), () => { setSelectedEntry(null); setScreen('records'); }) })} />;
       }
       case 'records': return <Records entries={library.entries} graph={() => setScreen('graph')} open={e => { setSelectedEntry(e); setScreen('result'); }} />;
       case 'graph': return <Graph entries={library.entries} back={() => setScreen('records')} />;
@@ -120,7 +128,7 @@ function Main() {
       case 'profile': return <Profile library={library} busy={busy} saveName={name => void mutate(lib => ({ ...lib, name }))} logout={() => void logout()} clear={() => setDialog({ title: '체험 데이터를 모두 지울까요?', message: '이 기기에 저장한 감정 기록과 음악 목록이 삭제됩니다.', confirm: () => void mutate(() => emptyLibrary()) })} />;
     }
   }
-  const showTabs = loaded && (!cloudMode || !!session) && !song && screen !== 'analyzing' && screen !== 'result';
+  const showTabs = loaded && (!cloudMode || !!session) && !song && !mix && screen !== 'analyzing' && screen !== 'result';
   const active = ['input', 'records', 'graph'].includes(screen) ? 'records' : screen === 'playlist' ? 'library' : screen;
   const tabs: { key: Screen; title: string; icon: IconName; selected: IconName }[] = [
     { key: 'home', title: '홈', icon: 'home-outline', selected: 'home' }, { key: 'records', title: '기록', icon: 'document-text-outline', selected: 'document-text' },
