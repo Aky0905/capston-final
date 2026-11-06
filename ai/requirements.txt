@@ -1,0 +1,7 @@
+streamlit
+gensim
+numpy
+scipy
+scikit-learn
+kiwipiepy
+pandas
