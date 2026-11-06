@@ -1,20 +1,21 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, Image, ImageBackground, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, Image, ImageBackground, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { AudioModule, RecordingPresets, setAudioModeAsync, useAudioRecorder, useAudioRecorderState } from 'expo-audio';
 import Svg, { Circle } from 'react-native-svg';
 import type { Analysis, Entry, Library, Playlist, Track } from './domain';
 import { calendarCells, localDate, moodColors, moodFaces, monthStats, streak } from './domain';
 import { cloudMode, tracks, savedTracks, transcribe } from './services';
+import { EmotionHistoryPreview } from './EmotionHistoryPreview';
 import { Button, C, Card, Cloud, Cover, Empty, Icon, IconButton, MoodChip, s, TrackRow } from './ui';
 
-export function Home({ library, input, play, collection, openLibrary, profile }: { library: Library; input: () => void; collection: (t: Track) => void; play: (t: Track) => void; openLibrary: () => void; profile: () => void }) {
+export function Home({ library, input, play, openRecords, openEntry, settings }: { library: Library; input: () => void; openEntry: (entry: Entry) => void; play: (t: Track) => void; openRecords: () => void; settings: () => void }) {
   const last = [...tracks,...savedTracks].find(t => t.id === library.recent[0]);
   const days = streak(library.entries);
   return <ScrollView style={s.page} contentContainerStyle={{ paddingBottom: 26 }}>
-    <ImageBackground source={require('../assets/sky.png')} style={{ height: 345 }} imageStyle={{ opacity: 0.96 }}>
+    <ImageBackground source={require('../assets/home-sky.png')} resizeMode="stretch" style={{ height: 345 }}>
       <View style={{ padding: 25, paddingTop: 20 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}><Image source={require('../assets/logo.png')} style={{ width: 29, height: 24 }} resizeMode="contain" /><Text style={{ color: 'white', fontSize: 22, fontWeight: '700' }}>Feelody</Text></View><View style={{ flexDirection: 'row', alignItems: 'center' }}><Text style={{ color: 'white', fontSize: 11 }}>{days ? `🔥 ${days}일 연속 기록 중` : '오늘도 반가워요'}</Text><IconButton name="settings-outline" label="설정 열기" onPress={profile} color="white" /></View></View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}><Image source={require('../assets/logo.png')} style={{ width: 40, height: 34 }} resizeMode="contain" /><Text style={{ color: 'white', fontSize: 23, fontFamily: Platform.select({ ios: 'ArialRoundedMTBold', android: 'sans-serif-rounded', web: '"Arial Rounded MT Bold", "Trebuchet MS", sans-serif' }), fontWeight: Platform.OS === 'ios' ? 'normal' : '700', letterSpacing: 0.4 }}>Feelody</Text></View><View style={{ flexDirection: 'row', alignItems: 'center' }}><Text style={{ color: 'white', fontSize: 11 }}>{days ? `🔥 ${days}일 연속 기록 중` : '오늘도 반가워요'}</Text><IconButton name="settings-outline" label="설정 열기" onPress={settings} color="white" /></View></View>
         <Text style={[s.title, { fontSize: 27, lineHeight: 38, marginTop: 25 }]}>{library.name}님,{ '\n' }지금 마음은 어떤가요?</Text>
         <Text style={[s.small, { color: '#455C89', marginTop: 10, fontSize: 14 }]}>어떤 감정이든 괜찮아요.{ '\n' }오늘의 마음에 어울리는 음악을 찾아볼까요?</Text>
         <View style={{ alignSelf: 'flex-end', marginTop: -9, marginRight: 4 }}><Cloud size={135} /></View>
@@ -23,10 +24,7 @@ export function Home({ library, input, play, collection, openLibrary, profile }:
     <View style={{ paddingHorizontal: 22, marginTop: -36 }}>
       <Pressable accessibilityRole="button" onPress={input}><Card style={{ flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 95, shadowColor: '#A9A1DB', shadowOpacity: 0.12, shadowRadius: 12, elevation: 2 }}><View style={{ backgroundColor: '#E9E3FF', width: 57, height: 57, borderRadius: 30, alignItems: 'center', justifyContent: 'center' }}><Icon name="happy-outline" size={35} color={C.purple} /></View><View style={{ flex: 1 }}><Text style={s.trackTitle}>지금, 내 감정 기록하기</Text><Text style={s.small}>오늘의 감정을 들려주세요.</Text></View><Icon name="arrow-forward" color={C.purple} size={21} /></Card></Pressable>
       {!cloudMode && <Text style={[s.small, { marginTop: 13, fontSize: 11 }]}>체험 모드 · 분석 예시이며 실제 AI 분석이 아닙니다.</Text>}
-      <View style={[s.sectionRow, { marginTop: 26 }]}><Text style={[s.heading, { fontSize: 18 }]}>오늘의 추천 플레이리스트</Text><Pressable onPress={openLibrary} accessibilityRole="button"><Text style={{ color: '#7772AE', fontSize: 12 }}>더보기 ›</Text></Pressable></View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 13 }}>
-        {tracks.map(t => <Pressable key={t.id} onPress={() => collection(t)} accessibilityRole="button" style={{ width: 128 }}><Cover track={t} size={128} /><Text style={[s.trackTitle, { fontSize: 14, marginTop: 8 }]} numberOfLines={1}>{t.tone}</Text><Text style={[s.small, { fontSize: 11 }]}>{t.moods.slice(0, 2).join(' · ')}</Text></Pressable>)}
-      </ScrollView>
+      <EmotionHistoryPreview entries={library.entries} openRecords={openRecords} openEntry={openEntry} input={input} />
       <Card style={{ marginTop: 26, paddingVertical: 10 }}><Text style={[s.heading, { fontSize: 17, marginTop: 3 }]}>최근 확인한 음악</Text>{last ? <TrackRow track={last} onPress={() => play(last)} /> : <Text style={[s.small, { paddingVertical: 16 }]}>마음에 드는 음악을 골라보세요.</Text>}</Card>
     </View>
   </ScrollView>;
@@ -69,11 +67,20 @@ export function InputScreen({ text, setText, analyze, back }: { text: string; se
     finally { operation.current = false; setBusy(false); }
   }
   return <ScrollView style={s.page} keyboardShouldPersistTaps="handled" contentContainerStyle={[s.content, { flexGrow: 1 }]}>
-    <View style={[s.sectionRow, { marginHorizontal: -12 }]}><IconButton name="chevron-back" label="뒤로" onPress={back} /><Text style={s.small}>마음을 기록하는 시간</Text><IconButton name="close" label="입력 닫기" onPress={back} /></View>
+    <View style={[s.sectionRow, { marginHorizontal: -12 }]}><IconButton name="chevron-back" label="뒤로" onPress={back} /><Text style={s.small}>마음을 기록하는 시간</Text><View style={{ width: 44 }} /></View>
     <Text style={s.title}>지금 마음을 들려주세요.</Text><Text style={[s.body, { marginTop: 14 }]}>기쁜 마음도, 복잡한 마음도 괜찮아요.{ '\n' }편하게 적어주세요.</Text>
-    <View style={{ marginTop: 35 }}><TextInput accessibilityLabel="감정 또는 고민 입력" style={[s.input, { minHeight: 170, textAlignVertical: 'top', paddingBottom: 35 }]} multiline maxLength={500} value={text} onChangeText={setText} placeholder={'지금 느끼는 감정을 자유롭게 입력해주세요.\n예) 오늘 너무 지치고 힘들어요…'} placeholderTextColor="#A2A4CF" editable={!busy && !state.isRecording} /><Text style={{ color: C.muted, position: 'absolute', right: 16, bottom: 12, fontSize: 12 }}>{text.length}/500</Text></View>
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 13 }}>{['신난다', '우울', '불안', '평온함'].map(t => <Pressable key={t} disabled={busy || state.isRecording} onPress={() => setText((text ? text + ' ' : '') + `#${t}`)} style={{ paddingHorizontal: 16, paddingVertical: 9, borderRadius: 24, borderWidth: 1, borderColor: '#E3DEFF', backgroundColor: '#F3F0FF' }}><Text style={{ color: C.purple, fontSize: 13 }}>#{t}</Text></Pressable>)}</View>
-    <View style={{ alignItems: 'center', marginVertical: 26 }}><View style={{ padding: 12, borderRadius: 90, borderWidth: 1, borderColor: '#EFEBFF', backgroundColor: '#F8F6FF' }}><Pressable accessibilityRole="button" accessibilityLabel={state.isRecording ? '녹음 종료 및 음성 인식' : '음성 입력 시작'} disabled={busy} onPress={() => void record()}><LinearGradient colors={state.isRecording ? ['#EE9BAF', '#B397F3'] : ['#9480FF', '#76B4FF']} style={{ width: 90, height: 90, borderRadius: 50, alignItems: 'center', justifyContent: 'center' }}>{busy ? <ActivityIndicator color="white" /> : <Icon name={state.isRecording ? 'stop' : 'mic'} size={42} color="white" />}</LinearGradient></Pressable></View><Text style={[s.small, { color: C.purple, marginTop: 14 }]}>{state.isRecording ? `녹음 중 ${Math.floor(state.durationMillis / 1000)}초 · 누르면 종료` : busy ? '목소리를 글로 옮기고 있어요…' : '음성으로도 입력할 수 있어요. · 최대 60초'}</Text></View>
+    <View style={{ marginTop: 35 }}><TextInput accessibilityLabel="감정 또는 고민 입력" style={[s.input, { minHeight: 240, textAlignVertical: 'top', paddingBottom: 35 }]} multiline maxLength={500} value={text} onChangeText={setText} placeholder={'지금 느끼는 감정을 자유롭게 입력해주세요.\n예) 요즘 해야 할 일은 많은데 어디서부터 시작해야 할지 모르겠어요. 미래에 대한 걱정도 많고, 내가 잘하고 있는 건지 불안해요. 누군가에게 위로 받고 싶은 하루예요.'} placeholderTextColor="#A2A4CF" editable={!busy && !state.isRecording} /><Text style={{ color: C.muted, position: 'absolute', right: 16, bottom: 12, fontSize: 12 }}>{text.length}/500</Text></View>
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 13 }}>{['기쁨', '슬픔', '분노', '우울', '평온', '잘 모르겠어요'].map(t => {
+      const tag = `#${t}`;
+      const pattern = new RegExp(`(^|\\s)${tag}(?=\\s|$)`, 'g');
+      const selected = pattern.test(text);
+      return <Pressable key={t} accessibilityRole="button" accessibilityLabel={tag} accessibilityState={{ selected, disabled: busy || state.isRecording }} disabled={busy || state.isRecording}
+        onPress={() => setText(selected ? text.replace(pattern, '$1').trimEnd() : (text.trimEnd() ? text.trimEnd() + ' ' : '') + tag)}
+        style={{ paddingHorizontal: 16, paddingVertical: 9, borderRadius: 24, borderWidth: 1.5, borderColor: selected ? C.purple : '#E3DEFF', backgroundColor: selected ? '#EDE7FF' : '#FDFBFF' }}>
+        <Text style={{ color: selected ? C.purple : C.muted, fontSize: 13, fontWeight: selected ? '600' : '400' }}>{tag}</Text>
+      </Pressable>;
+    })}</View>
+    <View style={{ alignItems: 'center', marginVertical: 26 }}><View style={{ padding: 12, borderRadius: 90, borderWidth: 1, borderColor: '#EFEBFF', backgroundColor: '#F8F6FF' }}><Pressable accessibilityRole="button" accessibilityLabel={state.isRecording ? '녹음 종료 및 음성 인식' : '음성 입력 시작'} disabled={busy} onPress={() => void record()}><LinearGradient colors={state.isRecording ? ['#EE9BAF', '#B397F3'] : ['#9480FF', '#76B4FF']} style={{ width: 90, height: 90, borderRadius: 50, alignItems: 'center', justifyContent: 'center' }}>{busy ? <ActivityIndicator color="white" /> : <Icon name={state.isRecording ? 'stop' : 'mic'} size={42} color="white" />}</LinearGradient></Pressable></View><Text style={[s.small, { color: C.purple, marginTop: 14 }]}>{state.isRecording ? `남은 시간 ${Math.max(0, 60 - Math.floor(state.durationMillis / 1000))}초 · 누르면 종료` : busy ? '목소리를 글로 옮기고 있어요…' : '음성으로도 입력할 수 있어요. · 최대 60초'}</Text></View>
     {!!notice && <Text accessibilityLiveRegion="polite" style={[s.small, { color: '#8B6092', marginBottom: 15 }]}>{notice}</Text>}
     <View style={{ flex: 1 }} /><Button title="내 마음 분석하기  ›" disabled={!text.trim() || busy || state.isRecording} onPress={analyze} />
     {cloudMode && <Text style={[s.small, { textAlign: 'center', fontSize: 11, marginTop: 14 }]}>분석을 위해 입력 내용이 OpenAI로 전송됩니다.{ '\n' }결과는 저장 버튼을 누른 경우에만 기록에 남아요.</Text>}

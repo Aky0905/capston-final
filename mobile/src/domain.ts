@@ -4,7 +4,7 @@ export type Track = { thumbnail?: string; id: string; title: string; artist: str
 export type Analysis = { primaryEmotion: Mood; secondaryEmotions: Mood[]; message: string; musicMood: string; tracks: Track[]; source: 'openai' | 'demo' };
 export type Entry = Analysis & { id: string; text: string; createdAt: string; localDate: string };
 export type Playlist = { id: string; name: string; trackIds: string[]; createdAt: string };
-export type Library = { savedTracks?: Track[]; entries: Entry[]; favorites: string[]; playlists: Playlist[]; recent: string[]; name: string };
+export type Library = { notificationsEnabled?: boolean; savedTracks?: Track[]; entries: Entry[]; favorites: string[]; playlists: Playlist[]; recent: string[]; name: string };
 export const emptyLibrary = (): Library => ({ entries: [], favorites: [], playlists: [], recent: [], name: '지은' });
 export const moodColors: Record<Mood, string> = { 기쁨: '#FFD574', 슬픔: '#96BCF8', 분노: '#FFA3AD', 불안: '#BEA5EE', 평온: '#9BD6CB', 설렘: '#E6ABDA', 기타: '#B5BDCE' };
 export const moodFaces: Record<Mood, string> = { 기쁨: '☺', 슬픔: '☹', 분노: '≋', 불안: '∿', 평온: '◡', 설렘: '♡', 기타: '·' };
@@ -29,4 +29,11 @@ export function calendarCells(year: number, month: number): (number | null)[] {
   const result: (number | null)[] = [...Array(start).fill(null), ...Array.from({ length: days }, (_, i) => i + 1)];
   while (result.length % 7) result.push(null);
   return result;
+}
+
+export function weeklyRecordDays(entries: Entry[], today = new Date()): number {
+  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  start.setDate(start.getDate() - (start.getDay() + 6) % 7);
+  const from = localDate(start), until = localDate(today);
+  return new Set(entries.filter(e => e.localDate >= from && e.localDate <= until).map(e => e.localDate)).size;
 }
