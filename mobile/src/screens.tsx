@@ -1,10 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, Image, ImageBackground, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, Image, ImageBackground, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { AudioModule, RecordingPresets, setAudioModeAsync, useAudioRecorder, useAudioRecorderState } from 'expo-audio';
 import Svg, { Circle } from 'react-native-svg';
 import type { Analysis, Entry, Library, Playlist, Track } from './domain';
-import { calendarCells, localDate, moodColors, moodFaces, monthStats, streak } from './domain';
+import { calendarCells, localDate, moodColors, moodFaces, monthStats, streak, weeklyRecordDays } from './domain';
 import { cloudMode, tracks, savedTracks, transcribe } from './services';
 import { EmotionHistoryPreview } from './EmotionHistoryPreview';
 import { Button, C, Card, Cloud, Cover, Empty, Icon, IconButton, MoodChip, s, TrackRow } from './ui';
@@ -113,7 +113,7 @@ export function Records({ entries, graph, open }: { entries: Entry[]; graph: () 
   const stats = monthStats(entries, prefix).filter(x => x.count > 0);
   function shift(delta: number) { const next = new Date(month.getFullYear(), month.getMonth() + delta, 1); setMonth(next); setSelected(localDate(next)); }
   return <ScrollView style={s.page} contentContainerStyle={s.content}><View style={s.sectionRow}><Text style={s.title}>감정 기록</Text><Icon name="calendar-outline" size={28} /></View><View style={[s.sectionRow, { marginTop: 16 }]}><IconButton name="chevron-back" label="이전 달" onPress={() => shift(-1)} /><Text style={s.heading}>{month.getFullYear()}년 {month.getMonth() + 1}월</Text><IconButton name="chevron-forward" label="다음 달" onPress={() => shift(1)} /></View>
-    <View style={{ flexDirection: 'row', paddingVertical: 10, borderRadius: 20, backgroundColor: '#F9F9FE' }}>{['일', '월', '화', '수', '목', '금', '토'].map(d => <Text key={d} style={{ width: `${100 / 7}%`, textAlign: 'center', color: '#67759C', fontWeight: '500' }}>{d}</Text>)}</View>
+    <View style={{ flexDirection: 'row', paddingVertical: 10, borderRadius: 20, backgroundColor: '#F1F0FA', borderWidth: 1, borderColor: '#E5E2F4' }}>{['일', '월', '화', '수', '목', '금', '토'].map(d => <Text key={d} style={{ width: `${100 / 7}%`, textAlign: 'center', color: '#67759C', fontWeight: '500' }}>{d}</Text>)}</View>
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 10 }}>{cells.map((day, i) => {
       const date = day ? `${prefix}-${String(day).padStart(2, '0')}` : '';
       const dayEntries = entries.filter(e => e.localDate === date);
@@ -131,7 +131,7 @@ export function Graph({ entries, back }: { entries: Entry[]; back: () => void })
   const total = stats.reduce((sum, x) => sum + x.count, 0);
   let offset = 0;
   return <ScrollView style={s.page} contentContainerStyle={s.content}><View style={{ marginLeft: -12 }}><IconButton name="chevron-back" label="기록으로 돌아가기" onPress={back} /></View><Text style={s.title}>월간 감정 그래프</Text><View style={[s.sectionRow, { marginTop: 28 }]}><IconButton name="chevron-back" label="이전 달" onPress={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))} /><Text style={s.heading}>{month.getFullYear()}년 {month.getMonth() + 1}월</Text><IconButton name="chevron-forward" label="다음 달" onPress={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))} /></View>
-    <View style={{ alignSelf: 'center', width: 280, height: 280, marginTop: 25 }}><Svg width={280} height={280} viewBox="0 0 280 280"><Circle cx={140} cy={140} r={103} fill="none" stroke="#F0EFF9" strokeWidth={48} />{stats.filter(x => x.count > 0).map(x => { const length = x.fraction * 2 * Math.PI * 103; const dashOffset = -offset; offset += length; return <Circle key={x.mood} cx={140} cy={140} r={103} fill="none" stroke={moodColors[x.mood]} strokeWidth={48} strokeDasharray={`${length} ${2 * Math.PI * 103 - length}`} strokeDashoffset={dashOffset} rotation={-90} origin="140,140" />; })}</Svg><View style={{ position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center' }}><Text style={s.heading}>이번 달 감정</Text><Text style={{ fontSize: 29, color: '#7C7FA8', marginTop: 8 }}>♡</Text><Text style={s.small}>{total}개의 마음</Text></View></View>
+    <View style={{ alignSelf: 'center', width: 280, height: 280, marginTop: 25 }}><Svg width={280} height={280} viewBox="0 0 280 280"><Circle cx={140} cy={140} r={103} fill="none" stroke="#F0EFF9" strokeWidth={48} />{stats.filter(x => x.count > 0).map(x => { const length = x.fraction * 2 * Math.PI * 103; const dashOffset = -offset; offset += length; return <Circle key={x.mood} cx={140} cy={140} r={103} fill="none" stroke={moodColors[x.mood]} strokeWidth={48} strokeDasharray={`${length} ${2 * Math.PI * 103 - length}`} strokeDashoffset={dashOffset} rotation={-90} origin="140,140" />; })}</Svg><View style={{ position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center' }}><Text style={s.heading}>이번 달 감정</Text><Text style={[s.small, { marginTop: 8 }]}>{total}개의 마음</Text></View></View>
     {total ? <View style={{ gap: 14, marginTop: 30 }}>{stats.filter(x => x.count > 0).map(x => <View key={x.mood} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}><View style={{ width: 12, height: 12, borderRadius: 10, backgroundColor: moodColors[x.mood] }} /><Text style={[s.body, { flex: 1 }]}>{x.mood}</Text><Text style={s.small}>{x.count}회</Text><Text style={{ width: 65, textAlign: 'right', color: C.ink, fontSize: 20, fontWeight: '600' }}>{Math.round(x.fraction * 100)}%</Text></View>)}</View> : <Empty title="아직 기록이 없어요" detail="이 달의 마음을 기록하면 그래프가 나타나요." />}
     <Text style={[s.small, { marginTop: 30, fontSize: 11 }]}>기록별 대표 감정 1개를 기준으로 계산합니다.{ '\n' }표시 비율은 반올림으로 합계가 100%와 조금 다를 수 있어요.</Text>
   </ScrollView>;
@@ -148,9 +148,43 @@ export function PlaylistDetail({ playlist, back, play, removeTrack, rename, remo
   return <ScrollView style={s.page} contentContainerStyle={s.content}><View style={[s.sectionRow, { marginHorizontal: -12 }]}><IconButton name="chevron-back" label="목록으로" onPress={back} /><IconButton name="create-outline" label="이름 변경" onPress={rename} /></View><Text style={s.title}>{playlist.name}</Text><Text style={[s.small, { marginTop: 10, marginBottom: 18 }]}>{playlist.trackIds.length}곡 · Feelody에 저장한 플레이리스트</Text>{playlist.trackIds.map(id => [...tracks,...savedTracks].find(t => t.id === id)).filter((t): t is Track => !!t).map(t => <TrackRow key={t.id} track={t} onPress={() => play(t)} action={<IconButton name="remove-circle-outline" label={`${t.title} 목록에서 제거`} onPress={() => removeTrack(t.id)} />} />)}{!playlist.trackIds.length && <Empty title="첫 곡을 추가해보세요" detail="음악 재생 화면에서 ‘플레이리스트’를 누르면 곡을 담을 수 있어요." />}<View style={{ marginTop: 30 }}><Button title="플레이리스트 삭제" onPress={remove} subtle /></View></ScrollView>;
 }
 
-export function Profile({ library, saveName, logout, clear, busy }: { library: Library; saveName: (name: string) => void; logout: () => void; clear: () => void; busy: boolean }) {
+export function Profile({ library, saveName, openRecords, logout, clear, busy }: { library: Library; saveName: (name: string, done: () => void) => void; openRecords: () => void; logout: () => void; clear: () => void; busy: boolean }) {
   const [name, setName] = useState(library.name);
-  return <ScrollView style={s.page} contentContainerStyle={s.content}><Text style={s.title}>프로필</Text><View style={{ alignItems: 'center', marginVertical: 30 }}><Cloud size={135} /><Text style={[s.heading, { marginTop: 16 }]}>{library.name}님의 작은 쉼터</Text></View><Card><Text style={[s.trackTitle, { marginBottom: 14 }]}>어떻게 불러드릴까요?</Text><TextInput accessibilityLabel="닉네임" style={s.input} maxLength={20} value={name} onChangeText={setName} /><View style={{ marginTop: 14 }}><Button title="이름 저장" onPress={() => saveName(name.trim())} disabled={!name.trim() || name.trim() === library.name || busy} /></View></Card><Card style={{ marginTop: 18 }}><Text style={s.trackTitle}>함께 기록한 마음</Text><Text style={[s.title, { marginTop: 12 }]}>{library.entries.length}<Text style={s.body}> 회</Text></Text><Text style={[s.small, { marginTop: 12 }]}>{cloudMode ? '계정에 기록을 저장하고 있어요.' : '체험 모드 · 이 기기에만 저장됩니다.\n음성 인식과 실제 AI 분석에는 연동 설정이 필요해요.'}</Text></Card><Text style={[s.small, { marginVertical: 22, fontSize: 12 }]}>Feelody는 감정 기록과 음악 탐색을 돕는 서비스입니다. 의료적 진단이나 전문 심리치료를 제공하지 않습니다.</Text><Button title={cloudMode ? '로그아웃' : '체험 데이터 모두 지우기'} onPress={cloudMode ? logout : clear} subtle disabled={busy} /></ScrollView>;
+  const [editing, setEditing] = useState(false);
+  const close = () => { if (!busy) setEditing(false); };
+  return <>
+    <ScrollView style={s.page} contentContainerStyle={s.content}>
+      <Text style={s.title}>프로필</Text>
+      <View style={{ alignItems: 'center', marginVertical: 30 }}><Cloud size={135} /><Text style={[s.heading, { marginTop: 16 }]}>{library.name}님의 작은 쉼터</Text></View>
+      <Card>
+        <Text style={s.heading}>내 프로필</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 22 }}>
+          <View style={{ flex: 1, gap: 8 }}><Text style={s.body}>닉네임</Text><Text style={s.heading}>{library.name}</Text></View>
+          <Pressable accessibilityRole="button" accessibilityLabel="닉네임 수정하기" disabled={busy} onPress={() => { setName(library.name); setEditing(true); }} style={{ borderRadius: 24, backgroundColor: '#F0EBFF', paddingHorizontal: 16, paddingVertical: 10 }}><Text style={{ color: C.purple, fontSize: 14 }}>수정하기</Text></Pressable>
+        </View>
+      </Card>
+      <Card style={{ marginTop: 18 }}>
+        <Text style={s.heading}>나의 감정 기록</Text>
+        <View style={{ flexDirection: 'row', gap: 12, marginTop: 22 }}>
+          {[{ value: library.entries.length, unit: '회', label: '전체 감정 기록' }, { value: weeklyRecordDays(library.entries), unit: '일', label: '이번 주 기록 일수' }].map(item => <View key={item.label} style={{ flex: 1, minWidth: 0, backgroundColor: '#F5F2FC', borderRadius: 18, padding: 14, gap: 22 }}>
+            <Text style={{ color: C.ink, fontSize: 32, fontWeight: '700' }}>{item.value}<Text style={{ fontSize: 24 }}>{item.unit}</Text></Text>
+            <Text style={[s.small, { fontSize: 13 }]}>{item.label}</Text>
+          </View>)}
+        </View>
+        <Pressable accessibilityRole="button" onPress={openRecords} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingTop: 20, paddingBottom: 2 }}><Text style={[s.body, { fontSize: 15 }]}>나의 감정 기록 확인하기</Text><Icon name="chevron-forward" color={C.purple} size={21} /></Pressable>
+      </Card>
+      <Text style={[s.small, { marginVertical: 22, fontSize: 12 }]}>Feelody는 감정 기록과 음악 탐색을 돕는 서비스입니다. 의료적 진단이나 전문 심리치료를 제공하지 않습니다.</Text>
+      <Button title={cloudMode ? '로그아웃' : '체험 데이터 모두 지우기'} onPress={cloudMode ? logout : clear} subtle disabled={busy} />
+    </ScrollView>
+    <Modal visible={editing} transparent animationType="fade" onRequestClose={close}>
+      <View style={s.sheetBackdrop}><View style={s.sheet}>
+        <View style={[s.sectionRow, { marginBottom: 0 }]}><Text style={s.heading}>닉네임 변경</Text><IconButton name="close" label="닉네임 변경 닫기" onPress={close} /></View>
+        <TextInput accessibilityLabel="새 닉네임" style={s.input} maxLength={20} value={name} onChangeText={setName} editable={!busy} autoFocus />
+        <Button title="저장" onPress={() => saveName(name.trim(), () => setEditing(false))} loading={busy} disabled={!name.trim() || name.trim() === library.name} />
+        <Button title="취소" onPress={close} subtle disabled={busy} />
+      </View></View>
+    </Modal>
+  </>;
 }
 
 export type Mix = { title: string; reason: string; songs: Track[] };

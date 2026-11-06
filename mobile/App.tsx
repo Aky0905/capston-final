@@ -140,7 +140,7 @@ function Main() {
       case 'graph': return <Graph entries={library.entries} back={() => setScreen('records')} />;
       case 'library': return <LibraryScreen library={library} play={play} toggleFavorite={favorite} create={() => { setPlaylistName(''); setPlaylistDialog('create'); }} open={p => { setPlaylistId(p.id); setScreen('playlist'); }} />;
       case 'playlist': return playlist ? <PlaylistDetail playlist={playlist} back={() => setScreen('library')} play={play} removeTrack={id => void mutate(lib => ({ ...lib, playlists: lib.playlists.map(p => p.id === playlistId ? { ...p, trackIds: p.trackIds.filter(x => x !== id) } : p) }))} rename={() => { setPlaylistName(playlist.name); setPlaylistDialog('rename'); }} remove={() => setDialog({ title: '플레이리스트를 삭제할까요?', confirm: () => void mutate(lib => ({ ...lib, playlists: lib.playlists.filter(p => p.id !== playlistId) }), () => setScreen('library')) })} /> : null;
-      case 'profile': return <Profile library={library} busy={busy} saveName={name => void mutate(lib => ({ ...lib, name }))} logout={() => void logout()} clear={() => setDialog({ title: '체험 데이터를 모두 지울까요?', message: '이 기기에 저장한 감정 기록과 음악 목록이 삭제됩니다.', confirm: () => void mutate(() => emptyLibrary()) })} />;
+      case 'profile': return <Profile library={library} busy={busy} saveName={(name, done) => void mutate(lib => ({ ...lib, name }), done)} openRecords={() => setScreen('records')} logout={() => void logout()} clear={() => setDialog({ title: '체험 데이터를 모두 지울까요?', message: '이 기기에 저장한 감정 기록과 음악 목록이 삭제됩니다.', confirm: () => void mutate(() => emptyLibrary()) })} />;
     }
   }
   const onboarding = cloudMode && !!session && loaded && !library.name.trim();
