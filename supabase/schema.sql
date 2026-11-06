@@ -1,7 +1,7 @@
 -- Supabase SQL Editor에서 실행하세요. 계정 생성은 Supabase Auth를 사용합니다.
 create table if not exists public.libraries (
   user_id uuid primary key references auth.users(id) on delete cascade,
-  data jsonb not null default '{"entries":[],"favorites":[],"playlists":[],"recent":[],"name":"지은"}'::jsonb,
+  data jsonb not null default '{"entries":[],"favorites":[],"playlists":[],"recent":[],"name":""}'::jsonb,
   updated_at timestamptz not null default now(),
   constraint library_is_object check (jsonb_typeof(data) = 'object'),
   constraint library_size check (octet_length(data::text) <= 2097152)

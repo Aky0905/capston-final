@@ -53,7 +53,7 @@ export async function loadLibrary(): Promise<Library> {
   const { data, error } = await supabase.from('libraries').select('data').maybeSingle();
   if (error) throw new Error('기록을 불러오지 못했어요. 잠시 후 다시 시도해주세요.');
   remember(data?.data?.savedTracks || []);
-  return data ? { ...emptyLibrary(), ...data.data } : emptyLibrary();
+  return data ? { ...emptyLibrary(), name: '', ...data.data } : { ...emptyLibrary(), name: '' };
 }
 export async function persistLibrary(library: Library): Promise<void> {
   library = { ...library, savedTracks: savedTracks.filter(t => library.favorites.includes(t.id) || library.recent.includes(t.id) || library.playlists.some(p => p.trackIds.includes(t.id)) || library.entries.some(e => e.tracks.some(x => x.id === t.id))) };
