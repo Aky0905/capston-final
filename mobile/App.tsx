@@ -4,7 +4,8 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as Crypto from 'expo-crypto';
 import type { Session } from '@supabase/supabase-js';
-import { MixDetail, type Mix, Analyzing, Graph, Home, InputScreen, LibraryScreen, PlaylistDetail, Profile, Records, Result } from './src/screens';
+import { Notifications, MixDetail, type Mix, Analyzing, Graph, Home, InputScreen, LibraryScreen, PlaylistDetail, Profile, Records, Result } from './src/screens';
+import { PlaylistPhotoPicker } from './src/PlaylistPhotoPicker';
 import { Player } from './src/Player';
 import { SettingsDialog } from './src/SettingsDialog';
 import { NicknameSetup } from './src/NicknameSetup';
@@ -13,7 +14,7 @@ import { emptyLibrary, localDate } from './src/domain';
 import type { Entry, Library, Track } from './src/domain';
 import { Button, C, Cloud, Icon, IconButton, IconName, s } from './src/ui';
 
-type Screen = 'home' | 'input' | 'analyzing' | 'result' | 'records' | 'graph' | 'library' | 'playlist' | 'profile';
+type Screen = 'home' | 'input' | 'analyzing' | 'result' | 'records' | 'graph' | 'library' | 'playlist' | 'profile' | 'notifications';
 type Dialog = { title: string; message?: string; confirm?: () => void; confirmLabel?: string; cancelLabel?: string } | null;
 export default function App() { return <SafeAreaProvider><Main /></SafeAreaProvider>; }
 
@@ -36,6 +37,8 @@ function Main() {
   const [playlistId, setPlaylistId] = useState<string | null>(null);
   const [playlistDialog, setPlaylistDialog] = useState<'create' | 'rename' | 'pick' | null>(null);
   const [playlistName, setPlaylistName] = useState('');
+  const [photoLoading, setPhotoLoading] = useState(false);
+  const [playlistPhoto, setPlaylistPhoto] = useState<string | undefined>();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [dialog, setDialog] = useState<Dialog>(null);
   const playlist = library.playlists.find(p => p.id === playlistId);
@@ -105,9 +108,9 @@ function Main() {
     void mutate(lib => ({ ...lib, recent: [track.id, ...lib.recent.filter(id => id !== track.id)].slice(0, 20) }));
   }
   function createPlaylist() {
-    if (!playlistName.trim()) return;
+    if (!playlistName.trim() || photoLoading) return;
     const id = Crypto.randomUUID();
-    void mutate(lib => ({ ...lib, playlists: playlistDialog === 'rename' ? lib.playlists.map(p => p.id === playlistId ? { ...p, name: playlistName.trim() } : p) : [{ id, name: playlistName.trim(), trackIds: song ? [song.id] : [], createdAt: new Date().toISOString() }, ...lib.playlists] }), () => setPlaylistDialog(null));
+    void mutate(lib => ({ ...lib, playlists: playlistDialog === 'rename' ? lib.playlists.map(p => p.id === playlistId ? { ...p, name: playlistName.trim(), coverUri: playlistPhoto } : p) : [{ id, name: playlistName.trim(), coverUri: playlistPhoto, trackIds: song ? [song.id] : [], createdAt: new Date().toISOString() }, ...lib.playlists] }), () => setPlaylistDialog(null));
   }
   async function logout() {
     if (!supabase) return;
@@ -129,7 +132,8 @@ function Main() {
         save={() => void mutate(lib => ({...lib,playlists:[{id:Crypto.randomUUID(),name:mix.title,trackIds:ids,createdAt:new Date().toISOString()},...lib.playlists]}))}/>;
     }
     switch (screen) {
-      case 'home': return <Home library={library} input={() => { setText(''); setScreen('input'); }} play={play} openRecords={() => setScreen('records')} openEntry={entry => { setSelectedEntry(entry); setScreen('result'); }} settings={() => setSettingsOpen(true)} />;
+      case 'home': return <Home library={library} input={() => { setText(''); setScreen('input'); }} play={play} openRecords={() => setScreen('records')} openEntry={entry => { setSelectedEntry(entry); setScreen('result'); }} settings={() => setSettingsOpen(true)} notifications={() => setScreen('notifications')} />;
+      case 'notifications': return <Notifications back={() => setScreen('home')} />;
       case 'input': return <InputScreen text={text} setText={t => setText(t.slice(0, 500))} analyze={() => void runAnalysis()} back={confirmLeaveInput} />;
       case 'analyzing': return <Analyzing />;
       case 'result': {
@@ -138,13 +142,13 @@ function Main() {
       }
       case 'records': return <Records entries={library.entries} graph={() => setScreen('graph')} open={e => { setSelectedEntry(e); setScreen('result'); }} />;
       case 'graph': return <Graph entries={library.entries} back={() => setScreen('records')} />;
-      case 'library': return <LibraryScreen library={library} play={play} toggleFavorite={favorite} create={() => { setPlaylistName(''); setPlaylistDialog('create'); }} open={p => { setPlaylistId(p.id); setScreen('playlist'); }} />;
-      case 'playlist': return playlist ? <PlaylistDetail playlist={playlist} back={() => setScreen('library')} play={play} removeTrack={id => void mutate(lib => ({ ...lib, playlists: lib.playlists.map(p => p.id === playlistId ? { ...p, trackIds: p.trackIds.filter(x => x !== id) } : p) }))} rename={() => { setPlaylistName(playlist.name); setPlaylistDialog('rename'); }} remove={() => setDialog({ title: '플레이리스트를 삭제할까요?', confirm: () => void mutate(lib => ({ ...lib, playlists: lib.playlists.filter(p => p.id !== playlistId) }), () => setScreen('library')) })} /> : null;
+      case 'library': return <LibraryScreen library={library} play={play} toggleFavorite={favorite} create={() => { setPlaylistName(''); setPlaylistPhoto(undefined); setPlaylistDialog('create'); }} open={p => { setPlaylistId(p.id); setScreen('playlist'); }} />;
+      case 'playlist': return playlist ? <PlaylistDetail playlist={playlist} back={() => setScreen('library')} play={play} removeTrack={id => void mutate(lib => ({ ...lib, playlists: lib.playlists.map(p => p.id === playlistId ? { ...p, trackIds: p.trackIds.filter(x => x !== id) } : p) }))} rename={() => { setPlaylistName(playlist.name); setPlaylistPhoto(playlist.coverUri); setPlaylistDialog('rename'); }} remove={() => setDialog({ title: '플레이리스트를 삭제할까요?', confirm: () => void mutate(lib => ({ ...lib, playlists: lib.playlists.filter(p => p.id !== playlistId) }), () => setScreen('library')) })} /> : null;
       case 'profile': return <Profile library={library} busy={busy} saveName={(name, done) => void mutate(lib => ({ ...lib, name }), done)} openRecords={() => setScreen('records')} logout={() => void logout()} clear={() => setDialog({ title: '체험 데이터를 모두 지울까요?', message: '이 기기에 저장한 감정 기록과 음악 목록이 삭제됩니다.', confirm: () => void mutate(() => emptyLibrary()) })} />;
     }
   }
   const onboarding = cloudMode && !!session && loaded && !library.name.trim();
-  const showTabs = !onboarding && loaded && (!cloudMode || !!session) && !song && !mix && screen !== 'analyzing' && screen !== 'result';
+  const showTabs = !onboarding && loaded && (!cloudMode || !!session) && !song && !mix && screen !== 'analyzing' && screen !== 'result' && screen !== 'notifications';
   const active = ['input', 'records', 'graph'].includes(screen) ? 'records' : screen === 'playlist' ? 'library' : screen;
   const tabs: { key: Screen; title: string; icon: IconName; selected: IconName }[] = [
     { key: 'home', title: '홈', icon: 'home-outline', selected: 'home' }, { key: 'records', title: '기록', icon: 'document-text-outline', selected: 'document-text' },
@@ -155,7 +159,7 @@ function Main() {
   </SafeAreaView>
   {settingsOpen && <SettingsDialog name={library.name} notificationsEnabled={library.notificationsEnabled ?? false} busy={busy} close={() => setSettingsOpen(false)} save={(name, notificationsEnabled) => void mutate(lib => ({ ...lib, name, notificationsEnabled }), () => setSettingsOpen(false))} />}
   <Modal visible={!!dialog} transparent animationType="fade" onRequestClose={() => setDialog(null)}><View style={s.sheetBackdrop}><View style={s.sheet}><Text style={s.heading}>{dialog?.title}</Text>{!!dialog?.message && <Text style={s.body}>{dialog.message}</Text>}<Button title={dialog?.confirmLabel || (dialog?.confirm ? '삭제하기' : '확인')} onPress={() => { const action = dialog?.confirm; setDialog(null); action?.(); }} />{dialog?.confirm && <Button title={dialog?.cancelLabel || "취소"} onPress={() => setDialog(null)} subtle />}</View></View></Modal>
-  <Modal visible={!!playlistDialog} transparent animationType="slide" onRequestClose={() => setPlaylistDialog(null)}><KeyboardAvoidingView style={s.sheetBackdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined}><View style={s.sheet}><View style={s.sectionRow}><Text style={s.heading}>{playlistDialog === 'pick' ? '곡을 어디에 담을까요?' : playlistDialog === 'rename' ? '이름 변경' : '새 플레이리스트'}</Text><IconButton name="close" label="닫기" onPress={() => setPlaylistDialog(null)} /></View>{playlistDialog === 'pick' ? <><ScrollView style={{ maxHeight: 280 }}>{library.playlists.map(p => <Pressable key={p.id} disabled={busy} onPress={() => song && void mutate(lib => ({ ...lib, playlists: lib.playlists.map(x => x.id === p.id ? { ...x, trackIds: [...new Set([...x.trackIds, song.id])] } : x) }), () => { setPlaylistDialog(null); setDialog({ title: '플레이리스트에 담았어요' }); })} style={{ paddingVertical: 16, borderBottomWidth: 1, borderColor: C.border }}><Text style={s.trackTitle}>{p.name}</Text><Text style={s.small}>{p.trackIds.length}곡</Text></Pressable>)}{!library.playlists.length && <Text style={s.body}>아직 플레이리스트가 없어요. 새로 만들어볼까요?</Text>}</ScrollView><Button title="＋ 새로 만들기" onPress={() => { setPlaylistName(''); setPlaylistDialog('create'); }} subtle /></> : <><TextInput accessibilityLabel="플레이리스트 이름" autoFocus style={s.input} placeholder="예) 오늘도 괜찮아" maxLength={40} value={playlistName} onChangeText={setPlaylistName} /><Button title="저장" onPress={createPlaylist} loading={busy} disabled={!playlistName.trim()} /></>}</View></KeyboardAvoidingView></Modal>
+  <Modal visible={!!playlistDialog} transparent animationType="slide" onRequestClose={() => setPlaylistDialog(null)}><KeyboardAvoidingView style={s.sheetBackdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined}><View style={s.sheet}><View style={s.sectionRow}><Text style={s.heading}>{playlistDialog === 'pick' ? '곡을 어디에 담을까요?' : playlistDialog === 'rename' ? '플레이리스트 수정' : '새 플레이리스트'}</Text><IconButton name="close" label="닫기" onPress={() => setPlaylistDialog(null)} /></View>{playlistDialog === 'pick' ? <><ScrollView style={{ maxHeight: 280 }}>{library.playlists.map(p => <Pressable key={p.id} disabled={busy} onPress={() => song && void mutate(lib => ({ ...lib, playlists: lib.playlists.map(x => x.id === p.id ? { ...x, trackIds: [...new Set([...x.trackIds, song.id])] } : x) }), () => { setPlaylistDialog(null); setDialog({ title: '플레이리스트에 담았어요' }); })} style={{ paddingVertical: 16, borderBottomWidth: 1, borderColor: C.border }}><Text style={s.trackTitle}>{p.name}</Text><Text style={s.small}>{p.trackIds.length}곡</Text></Pressable>)}{!library.playlists.length && <Text style={s.body}>아직 플레이리스트가 없어요. 새로 만들어볼까요?</Text>}</ScrollView><Button title="＋ 새로 만들기" onPress={() => { setPlaylistName(''); setPlaylistPhoto(undefined); setPlaylistDialog('create'); }} subtle /></> : <><PlaylistPhotoPicker key={playlistDialog} value={playlistPhoto} onChange={setPlaylistPhoto} disabled={busy} onBusyChange={setPhotoLoading} /><TextInput accessibilityLabel="플레이리스트 이름" autoFocus style={s.input} placeholder="예) 오늘도 괜찮아" placeholderTextColor="#9A9AA6" maxLength={40} value={playlistName} onChangeText={setPlaylistName} /><Button title="저장" onPress={createPlaylist} loading={busy} disabled={!playlistName.trim() || photoLoading} /></>}</View></KeyboardAvoidingView></Modal>
   </View>;
 }
 
