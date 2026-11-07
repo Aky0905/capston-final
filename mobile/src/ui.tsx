@@ -22,6 +22,8 @@ export function Card({ children, style }: { children: React.ReactNode; style?: V
 export function Cloud({ size = 150 }: { size?: number }) { return <Image source={require('../assets/cloud.png')} style={{ width: size, height: size * 0.77 }} resizeMode="contain" accessibilityLabel="눈을 감고 쉬는 구름 캐릭터" />; }
 export function MoodChip({ mood }: { mood: Mood }) { return <View style={[s.chip, { backgroundColor: moodColors[mood] + '30' }]}><View style={{ width: 8, height: 8, borderRadius: 8, backgroundColor: moodColors[mood] }} /><Text style={{ color: C.ink, fontSize: 14 }}>{mood}</Text></View>; }
 export function Cover({ track, size = 64 }: { track: Track; size?: number }) {
+  if (track.spotifyId && track.thumbnail) return <Image accessibilityLabel={track.title + ' 앨범 커버'}
+    source={{ uri: track.thumbnail }} resizeMode="cover" style={{ width: size, height: size, borderRadius: 12 }} />;
   return <View style={{ width: size, height: size, borderRadius: 14, overflow: 'hidden', backgroundColor: track.color }}><Image source={track.thumbnail ? {uri:track.thumbnail} : require('../assets/sky.png')} style={{ width: '100%', height: '100%', opacity: 0.72 }} /><View style={{ position: 'absolute', inset: 0, backgroundColor: track.color, opacity: 0.2 }} /><View style={{ position: 'absolute', bottom: 8, right: 8 }}><Icon name="musical-notes" size={18} color="white" /></View></View>;
 }
 export function TrackRow({ track, onPress, action }: { track: Track; onPress: () => void; action?: React.ReactNode }) {

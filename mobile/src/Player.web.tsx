@@ -152,8 +152,8 @@ export function Player({ track, queue, play, visible = true, close, favorite, to
       {notice && <p role="status" className="fp-notice">{notice}</p>}
       {linked && !device && !notice && <p role="status" className="fp-notice">재생 장치 연결 중…</p>}
       {next && <button className="fp-next" disabled={busy} onClick={() => skip(next)}>
-        <Icon name="list" size={22} color="#c9c0e4" /><span><small>다음 곡</small><strong>{next.title}</strong><span>{next.artist}</span></span>
-        <Icon name="chevron-forward" size={17} color="#b1a9bf" />
+        <Icon name="list" size={22} color="#75688f" /><span><small>다음 곡</small><strong>{next.title}</strong><span>{next.artist}</span></span>
+        <Icon name="chevron-forward" size={17} color="#75688f" />
       </button>}
     </section>
   </main>;
@@ -161,6 +161,6 @@ export function Player({ track, queue, play, visible = true, close, favorite, to
 
 function Control({icon, label, main, disabled, onClick}: {icon: IconName; label: string; main?: boolean; disabled?: boolean; onClick: () => void}) {
   return <button className={main ? 'fp-button fp-primary' : 'fp-button'} aria-label={label} title={label} disabled={disabled} onClick={onClick}>
-    <Icon name={icon} size={main ? 30 : 22} color={main ? '#261e39' : 'currentColor'}/>
+    <Icon name={icon} size={main ? 30 : 22} color={main ? '#ffffff' : 'currentColor'}/>
   </button>;
 }
