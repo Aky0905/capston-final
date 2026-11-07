@@ -94,8 +94,8 @@ public class OpenAiService {
     }
     public Map<String, String> transcribe(MultipartFile file) {
         if (file.isEmpty() || file.getSize() > 10 * 1024 * 1024) throw new ApiException(400, "10MB 이하의 음성을 보내주세요.");
-        String type = Objects.toString(file.getContentType(), "");
-        String suffix = switch (type) { case "audio/mp4", "audio/m4a", "audio/x-m4a" -> "m4a"; case "audio/mpeg" -> "mp3"; case "audio/wav", "audio/x-wav" -> "wav"; case "audio/webm", "video/webm" -> "webm"; default -> throw new ApiException(400, "지원하지 않는 음성 형식이에요."); };
+        String type = Objects.toString(file.getContentType(), "").split(";", 2)[0].trim().toLowerCase(Locale.ROOT);
+        String suffix = switch (type) { case "video/mp4" -> "mp4"; case "audio/mp4", "audio/m4a", "audio/x-m4a" -> "m4a"; case "audio/mpeg" -> "mp3"; case "audio/wav", "audio/x-wav" -> "wav"; case "audio/webm", "video/webm" -> "webm"; default -> throw new ApiException(400, "지원하지 않는 음성 형식이에요."); };
         try {
             String boundary = "Feelody" + UUID.randomUUID();
             var body = new ByteArrayOutputStream();
