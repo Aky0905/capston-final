@@ -162,8 +162,19 @@ export function Profile({ library, saveName, openRecords, logout, clear, busy }:
   </>;
 }
 
-export type Mix = { title: string; reason: string; songs: Track[] };
-export function MixDetail({ mix, back, play, save, saved, busy, liked, toggle }: { mix: Mix; back: () => void; play: (t: Track) => void; save: () => void; saved: boolean; busy: boolean; liked: string[]; toggle: (id: string) => void }) {
+export type Mix = { mood: Entry['primaryEmotion']; exhausted?: boolean; title: string; reason: string; songs: Track[] };
+export function MixDetail({ mix, add, more, back, play, save, saved, busy, liked, toggle }: { mix: Mix; add: (t: Track) => void; more: () => Promise<void>; back: () => void; play: (t: Track) => void; save: () => void; saved: boolean; busy: boolean; liked: string[]; toggle: (id: string) => void }) {
+  const requesting = useRef(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [recommendationError, setRecommendationError] = useState('');
+  async function loadMore() {
+    if (requesting.current) return;
+    requesting.current = true;
+    setLoadingMore(true); setRecommendationError('');
+    try { await more(); }
+    catch (error) { setRecommendationError(error instanceof Error ? error.message : '추천곡을 가져오지 못했어요. 다시 시도해주세요.'); }
+    finally { requesting.current = false; setLoadingMore(false); }
+  }
   const first = mix.songs[0];
   return <ScrollView style={mixStyles.page} contentContainerStyle={mixStyles.content}>
     <View style={mixStyles.nav}>
@@ -196,8 +207,13 @@ export function MixDetail({ mix, back, play, save, saved, busy, liked, toggle }:
         <Cover track={track} size={52} />
         <View style={mixStyles.details}><Text numberOfLines={2} style={mixStyles.songTitle}>{track.title}</Text><Text numberOfLines={1} style={mixStyles.artist}>{track.artist}</Text></View>
       </Pressable>
+      <IconButton label={track.title + ' 내 플레이리스트에 추가'} name="add-circle-outline" onPress={() => add(track)} />
       <IconButton label={liked.includes(track.id) ? '좋아요 취소' : '좋아요'} name={liked.includes(track.id) ? 'heart' : 'heart-outline'} color={liked.includes(track.id) ? '#7862BD' : '#766F81'} onPress={() => toggle(track.id)} />
     </View>)}
+    <View style={{ marginTop: 18 }}>
+      <Button title={mix.exhausted ? '추천곡을 모두 확인했어요' : '추천 더 받기'} subtle loading={loadingMore} disabled={mix.exhausted} onPress={() => void loadMore()} />
+      {!!recommendationError && <Text accessibilityLiveRegion="polite" style={s.small}>{recommendationError}</Text>}
+    </View>
   </ScrollView>;
 }
 
