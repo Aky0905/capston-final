@@ -10,7 +10,8 @@ import { Player } from './src/Player';
 import { SettingsDialog } from './src/SettingsDialog';
 import { NicknameSetup } from './src/NicknameSetup';
 import { tracks, savedTracks, analyze, cloudMode, configReady, loadLibrary, persistLibrary, supabase, validateAnalysis } from './src/services';
-import { emptyLibrary, localDate } from './src/domain';
+import { Sprout } from './src/Sprout';
+import { attendanceThisMonth, sproutStage, emptyLibrary, localDate } from './src/domain';
 import type { Entry, Library, Track } from './src/domain';
 import { Button, C, Cloud, Icon, IconButton, IconName, s } from './src/ui';
 
@@ -22,6 +23,12 @@ function Main() {
   const [screen, setScreen] = useState<Screen>('home');
   const [library, setLibrary] = useState<Library>(emptyLibrary);
   const current = useRef(library);
+  const [today, setToday] = useState(() => localDate());
+  useEffect(() => {
+    const timer = setInterval(() => setToday(localDate()), 15000);
+    return () => clearInterval(timer);
+  }, []);
+  const stage = sproutStage(library.attendanceDates, today);
   const [session, setSession] = useState<Session | null>(null);
   const [authReady, setAuthReady] = useState(!cloudMode || !configReady);
   const [loaded, setLoaded] = useState(false);
@@ -95,14 +102,27 @@ function Main() {
     });
   }
   async function runAnalysis() {
-    if (!text.trim() || text.length > 500) return;
+    if (lock.current || !text.trim() || text.length > 500) return;
+    lock.current = true; setBusy(true);
     setScreen('analyzing');
     try {
       const result = await analyze(text.trim());
       if (!validateAnalysis(result)) throw new Error('분석 결과를 읽지 못했어요. 다시 시도해주세요.');
+      const day = localDate();
+      setToday(day);
+      const dates = attendanceThisMonth(current.current.attendanceDates, day);
+      if (!dates.includes(day)) {
+        const next = { ...current.current, attendanceDates: [...dates, day] };
+        try {
+          await persistLibrary(next);
+          current.current = next;
+          setLibrary(next);
+        } catch { error(new Error('추천은 완료됐지만 출석을 저장하지 못했어요. 네트워크 연결을 확인해주세요.')); }
+      }
       setPending({ ...result, id: Crypto.randomUUID(), text: text.trim(), createdAt: new Date().toISOString(), localDate: localDate() });
       setSelectedEntry(null); setScreen('result');
     } catch (e) { setScreen('input'); error(e); }
+    finally { lock.current = false; setBusy(false); }
   }
   const favorite = (id: string) => void mutate(lib => ({ ...lib, favorites: lib.favorites.includes(id) ? lib.favorites.filter(x => x !== id) : [...lib.favorites, id] }));
   function play(track: Track) {
@@ -143,19 +163,19 @@ function Main() {
         save={() => void mutate(lib => ({...lib,playlists:[{id:Crypto.randomUUID(),name:mix.title,trackIds:ids,createdAt:new Date().toISOString()},...lib.playlists]}))}/>;
     }
     switch (screen) {
-      case 'home': return <Home library={library} input={() => { setText(''); setScreen('input'); }} play={play} openRecords={() => setScreen('records')} openEntry={entry => { setSelectedEntry(entry); setScreen('result'); }} settings={() => setSettingsOpen(true)} notifications={() => setScreen('notifications')} />;
+      case 'home': return <Home stage={stage} attendanceDays={attendanceThisMonth(library.attendanceDates, today).length} library={library} input={() => { setText(''); setScreen('input'); }} play={play} openRecords={() => setScreen('records')} openEntry={entry => { setSelectedEntry(entry); setScreen('result'); }} notifications={() => setScreen('notifications')} />;
       case 'notifications': return <Notifications back={() => setScreen('home')} />;
       case 'input': return <InputScreen text={text} setText={t => setText(t.slice(0, 500))} analyze={() => void runAnalysis()} back={confirmLeaveInput} />;
-      case 'analyzing': return <Analyzing />;
+      case 'analyzing': return <Analyzing stage={stage} />;
       case 'result': {
         const entry = selectedEntry || pending;
-        return entry && <Result result={entry} name={library.name} play={() => setMix({title:entry.musicMood,reason:entry.primaryEmotion+'의 마음에 어울리는 음악이에요.',songs:entry.tracks})} back={() => setScreen(selectedEntry ? 'records' : 'input')} saving={busy} stored={!!selectedEntry} save={() => void mutate(lib => ({ ...lib, entries: lib.entries.some(e => e.id === entry.id) ? lib.entries : [entry, ...lib.entries] }), () => { setPending(null); setText(''); setScreen('records'); })} remove={() => setDialog({ title: '이 기록을 삭제할까요?', message: '삭제한 기록은 되돌릴 수 없어요.', confirm: () => void mutate(lib => ({ ...lib, entries: lib.entries.filter(e => e.id !== entry.id) }), () => { setSelectedEntry(null); setScreen('records'); }) })} />;
+        return entry && <Result stage={stage} result={entry} name={library.name} play={() => setMix({title:entry.musicMood,reason:entry.primaryEmotion+'의 마음에 어울리는 음악이에요.',songs:entry.tracks})} back={() => setScreen(selectedEntry ? 'records' : 'input')} saving={busy} stored={!!selectedEntry} save={() => void mutate(lib => ({ ...lib, entries: lib.entries.some(e => e.id === entry.id) ? lib.entries : [entry, ...lib.entries] }), () => { setPending(null); setText(''); setScreen('records'); })} remove={() => setDialog({ title: '이 기록을 삭제할까요?', message: '삭제한 기록은 되돌릴 수 없어요.', confirm: () => void mutate(lib => ({ ...lib, entries: lib.entries.filter(e => e.id !== entry.id) }), () => { setSelectedEntry(null); setScreen('records'); }) })} />;
       }
       case 'records': return <Records entries={library.entries} graph={() => setScreen('graph')} open={e => { setSelectedEntry(e); setScreen('result'); }} />;
       case 'graph': return <Graph entries={library.entries} back={() => setScreen('records')} />;
       case 'library': return <LibraryScreen library={library} play={play} toggleFavorite={favorite} create={() => { setPlaylistName(''); setPlaylistPhoto(undefined); setPlaylistDialog('create'); }} open={p => { setPlaylistId(p.id); setScreen('playlist'); }} />;
       case 'playlist': return playlist ? <PlaylistDetail playlist={playlist} back={() => setScreen('library')} play={play} removeTrack={id => void mutate(lib => ({ ...lib, playlists: lib.playlists.map(p => p.id === playlistId ? { ...p, trackIds: p.trackIds.filter(x => x !== id) } : p) }))} rename={() => { setPlaylistName(playlist.name); setPlaylistPhoto(playlist.coverUri); setPlaylistDialog('rename'); }} remove={() => setDialog({ title: '플레이리스트를 삭제할까요?', confirm: () => void mutate(lib => ({ ...lib, playlists: lib.playlists.filter(p => p.id !== playlistId) }), () => setScreen('library')) })} /> : null;
-      case 'profile': return <Profile library={library} busy={busy} saveName={(name, done) => void mutate(lib => ({ ...lib, name }), done)} openRecords={() => setScreen('records')} logout={() => void logout()} clear={() => setDialog({ title: '체험 데이터를 모두 지울까요?', message: '이 기기에 저장한 감정 기록과 음악 목록이 삭제됩니다.', confirm: () => void mutate(() => emptyLibrary()) })} />;
+      case 'profile': return <Profile settings={() => setSettingsOpen(true)} stage={stage} library={library} busy={busy} saveName={(name, done) => void mutate(lib => ({ ...lib, name }), done)} openRecords={() => setScreen('records')} logout={() => void logout()} clear={() => setDialog({ title: '체험 데이터를 모두 지울까요?', message: '이 기기에 저장한 감정 기록과 음악 목록이 삭제됩니다.', confirm: () => void mutate(() => emptyLibrary()) })} />;
     }
   }
   const onboarding = cloudMode && !!session && loaded && !library.name.trim();
@@ -165,7 +185,7 @@ function Main() {
     { key: 'home', title: '홈', icon: 'home-outline', selected: 'home' }, { key: 'records', title: '기록', icon: 'document-text-outline', selected: 'document-text' },
     { key: 'library', title: '플레이리스트', icon: 'musical-notes-outline', selected: 'musical-notes' }, { key: 'profile', title: '프로필', icon: 'person-outline', selected: 'person' }
   ];
-  return <View style={{ flex: 1, backgroundColor: '#EBEDF8', alignItems: 'center' }}><SafeAreaView style={{ flex: 1, width: '100%', maxWidth: 480, backgroundColor: screen === 'home' && loaded && !song && !onboarding ? '#96B4EA' : C.bg }}><StatusBar style={screen === 'home' && loaded && !song && !onboarding ? 'light' : 'dark'} /><KeyboardAvoidingView style={{ flex: 1, backgroundColor: C.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>{content()}
+  return <View style={{ flex: 1, backgroundColor: '#EBEDF8', alignItems: 'center' }}><SafeAreaView style={{ flex: 1, width: '100%', maxWidth: 480, backgroundColor: screen === 'home' && loaded && !song && !onboarding ? '#F1EEFF' : C.bg }}><StatusBar style="dark" /><KeyboardAvoidingView style={{ flex: 1, backgroundColor: C.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>{content()}
     {lastWebSong && loaded && <View style={{ flex: 1, display: song ? 'flex' : 'none' }}>
       <Player queue={queue} track={lastWebSong} visible={!!song} close={() => setSong(null)} favorite={library.favorites.includes(lastWebSong.id)}
         toggleFavorite={() => favorite(lastWebSong.id)} addToPlaylist={() => setPlaylistDialog('pick')} play={selectTrack} />
@@ -197,7 +217,7 @@ function AuthScreen({ report }: { report: (error: unknown) => void }) {
       } else { const { error } = await supabase!.auth.signInWithPassword({ email: email.trim(), password }); if (error) throw new Error('로그인하지 못했어요. 이메일과 비밀번호를 확인해주세요.'); }
     } catch (e) { report(e); } finally { setBusy(false); }
   }
-  return <><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[s.content, { flexGrow: 1, justifyContent: 'center', gap: 18 }]}><View style={{ alignItems: 'center' }}><Cloud size={170} /><Text style={[s.title, { marginTop: 22 }]}>Feelody</Text><Text style={[s.body, { textAlign: 'center', marginVertical: 14 }]}>오늘의 마음에,{ '\n' }음악 한 곡을 건네다.</Text></View><TextInput accessibilityLabel="이메일" style={s.input} placeholder="이메일" keyboardType="email-address" autoCapitalize="none" autoComplete="email" value={email} onChangeText={setEmail} /><TextInput accessibilityLabel="비밀번호" style={s.input} placeholder="비밀번호 · 8자 이상" secureTextEntry autoComplete={signup ? 'new-password' : 'current-password'} value={password} onChangeText={setPassword} /><Button title={signup ? '회원가입' : '로그인'} onPress={() => void submit()} loading={busy} disabled={!email.includes('@') || password.length < (signup ? 8 : 1)} /><Button title={signup ? '이미 계정이 있어요' : '처음이에요 · 회원가입'} onPress={() => setSignup(!signup)} subtle disabled={busy} /><Text style={[s.small, { textAlign: 'center', fontSize: 11 }]}>감정 분석 시 입력한 글과 음성은 OpenAI로 전송됩니다.{ '\n' }저장한 기록은 본인 계정에서만 확인할 수 있어요.</Text></ScrollView>
+  return <><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[s.content, { flexGrow: 1, justifyContent: 'center', gap: 18 }]}><View style={{ alignItems: 'center' }}><Sprout stage={4} size={170} /><Text style={[s.title, { marginTop: 22 }]}>Feelody</Text><Text style={[s.body, { textAlign: 'center', marginVertical: 14 }]}>오늘의 마음에,{ '\n' }음악 한 곡을 건네다.</Text></View><TextInput accessibilityLabel="이메일" style={s.input} placeholder="이메일" keyboardType="email-address" autoCapitalize="none" autoComplete="email" value={email} onChangeText={setEmail} /><TextInput accessibilityLabel="비밀번호" style={s.input} placeholder="비밀번호 · 8자 이상" secureTextEntry autoComplete={signup ? 'new-password' : 'current-password'} value={password} onChangeText={setPassword} /><Button title={signup ? '회원가입' : '로그인'} onPress={() => void submit()} loading={busy} disabled={!email.includes('@') || password.length < (signup ? 8 : 1)} /><Button title={signup ? '이미 계정이 있어요' : '처음이에요 · 회원가입'} onPress={() => setSignup(!signup)} subtle disabled={busy} /><Text style={[s.small, { textAlign: 'center', fontSize: 11 }]}>감정 분석 시 입력한 글과 음성은 OpenAI로 전송됩니다.{ '\n' }저장한 기록은 본인 계정에서만 확인할 수 있어요.</Text></ScrollView>
     <Modal visible={duplicate} transparent animationType="fade" onRequestClose={() => setDuplicate(false)}>
       <View style={s.sheetBackdrop}><View style={s.sheet}>
         <Text style={s.heading}>이미 가입된 이메일이에요</Text>
