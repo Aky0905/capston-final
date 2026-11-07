@@ -70,8 +70,11 @@ async function headers(): Promise<Record<string, string>> {
   if (!data.session) throw new Error('로그인이 필요해요.');
   return { Authorization: `Bearer ${data.session.access_token}` };
 }
-async function request(path: string, body: string | FormData): Promise<any> {
+async function request(path: string, body: string | FormData, signal?: AbortSignal): Promise<any> {
   const controller = new AbortController();
+  const abort = () => controller.abort();
+  signal?.addEventListener('abort', abort);
+  if (signal?.aborted) abort();
   const timeout = setTimeout(() => controller.abort(), 65000);
   try {
     const auth = await headers();
@@ -82,7 +85,7 @@ async function request(path: string, body: string | FormData): Promise<any> {
   } catch (e) {
     if (e instanceof Error && e.name === 'AbortError') throw new Error('응답이 늦어지고 있어요. 다시 시도해주세요.');
     throw e;
-  } finally { clearTimeout(timeout); }
+  } finally { clearTimeout(timeout); signal?.removeEventListener('abort', abort); }
 }
 export async function analyze(text: string): Promise<Analysis> {
   if (cloudMode) {
@@ -98,16 +101,15 @@ export async function analyze(text: string): Promise<Analysis> {
   const mood = /불안|걱정|무서/.test(text) ? '불안' : /화나|짜증|분노/.test(text) ? '분노' : /우울|슬프|힘들|지쳐|지친/.test(text) ? '슬픔' : /설레|설렘|기대/.test(text) ? '설렘' : /기쁘|행복|신나|좋아/.test(text) ? '기쁨' : '평온';
   return { primaryEmotion: mood, secondaryEmotions: [], message: '오늘의 마음을 들려줘서 고마워요. 잠깐 숨을 고르고, 당신을 위한 음악과 함께 쉬어가도 괜찮아요.', musicMood: '포근한 위로', tracks: tracks.filter(t => t.moods.includes(mood)), source: 'demo' };
 }
-export async function transcribe(uri: string): Promise<string> {
-  if (!cloudMode) throw new Error('음성 인식은 실제 연동 모드에서 사용할 수 있어요. 지금은 글로 마음을 적어주세요.');
+export async function transcribe(recording: string | Blob, signal?: AbortSignal): Promise<string> {
+  if (!cloudMode) throw new Error('음성 인식은 실제 연동 모드에서 사용할 수 있어요.');
   const form = new FormData();
-  if (Platform.OS === 'web') {
-    const blob = await (await fetch(uri)).blob();
-    form.append('file', blob, blob.type.includes('webm') ? 'recording.webm' : 'recording.m4a');
+  if (typeof recording === 'string') {
+    form.append('file', { uri: recording, name: 'recording.m4a', type: 'audio/mp4' } as any);
   } else {
-    form.append('file', { uri, name: 'recording.m4a', type: 'audio/mp4' } as any);
+    form.append('file', recording, recording.type.includes('webm') ? 'recording.webm' : 'recording.m4a');
   }
-  const data = await request('transcribe', form);
+  const data = await request('transcribe', form, signal);
   if (typeof data.text !== 'string' || !data.text.trim()) throw new Error('목소리를 인식하지 못했어요. 다시 녹음해주세요.');
   return data.text;
 }
