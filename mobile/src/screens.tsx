@@ -1,11 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, Image, ImageBackground, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { AudioModule, RecordingPresets, setAudioModeAsync, useAudioRecorder, useAudioRecorderState } from 'expo-audio';
+import { useVoiceInput } from './useVoiceInput';
 import Svg, { Circle } from 'react-native-svg';
 import type { Analysis, Entry, Library, Playlist, Track } from './domain';
 import { calendarCells, localDate, moodColors, moodFaces, monthStats, streak, weeklyRecordDays } from './domain';
-import { cloudMode, tracks, savedTracks, transcribe } from './services';
+import { cloudMode, tracks, savedTracks } from './services';
 import { PasswordSettings } from './PasswordSettings';
 import { DailyEntriesPager } from './DailyEntriesPager';
 import { EmotionHistoryPreview } from './EmotionHistoryPreview';
@@ -48,41 +48,7 @@ export function Home({ stage, attendanceDays, library, input, play, openRecords,
 }
 
 export function InputScreen({ text, setText, analyze, back }: { text: string; setText: (t: string) => void; analyze: () => void; back: () => void }) {
-  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
-  const state = useAudioRecorderState(recorder, 250);
-  const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState('');
-  const operation = useRef(false);
-  const mounted = useRef(true);
-  useEffect(() => () => { mounted.current = false; void setAudioModeAsync({ allowsRecording: false }); }, []);
-  async function stop() {
-    if (operation.current) return;
-    operation.current = true; setBusy(true);
-    try {
-      await recorder.stop();
-      await setAudioModeAsync({ allowsRecording: false });
-      if (!recorder.uri) throw new Error('녹음 파일이 없어요. 다시 시도해주세요.');
-      const result = await transcribe(recorder.uri);
-      if (!mounted.current) return;
-      if (result.length > 500) { setNotice('인식 결과가 500자를 넘었어요. 조금 짧게 다시 녹음해주세요.'); return; }
-      setText(result); setNotice('인식한 내용을 확인하고 자유롭게 수정해주세요.');
-    } catch (e) { if (mounted.current) setNotice(e instanceof Error ? e.message : '음성 인식에 실패했어요.'); }
-    finally { operation.current = false; if (mounted.current) setBusy(false); }
-  }
-  useEffect(() => { if (state.isRecording && state.durationMillis >= 60000) void stop(); }, [state.durationMillis, state.isRecording]);
-  async function record() {
-    if (state.isRecording) { await stop(); return; }
-    if (!cloudMode) { setNotice('음성 인식은 실제 연동 모드에서 사용할 수 있어요. 지금은 글로 입력해주세요.'); return; }
-    if (operation.current) return;
-    operation.current = true; setBusy(true); setNotice('');
-    try {
-      const permission = await AudioModule.requestRecordingPermissionsAsync();
-      if (!permission.granted) throw new Error('마이크 권한을 허용하면 음성으로 입력할 수 있어요.');
-      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
-      await recorder.prepareToRecordAsync(); recorder.record({ forDuration: 61 });
-    } catch (e) { setNotice(e instanceof Error ? e.message : '녹음을 시작하지 못했어요.'); }
-    finally { operation.current = false; setBusy(false); }
-  }
+  const { state, busy, notice, record, status } = useVoiceInput(setText);
   return <ScrollView style={s.page} keyboardShouldPersistTaps="handled" contentContainerStyle={[s.content, { flexGrow: 1 }]}>
     <View style={[s.sectionRow, { marginHorizontal: -12 }]}><IconButton name="chevron-back" label="뒤로" onPress={back} /><Text style={s.small}>마음을 기록하는 시간</Text><View style={{ width: 44 }} /></View>
     <Text style={s.title}>지금 마음을 들려주세요.</Text><Text style={[s.body, { marginTop: 14 }]}>기쁜 마음도, 복잡한 마음도 괜찮아요.{ '\n' }편하게 적어주세요.</Text>
@@ -97,7 +63,7 @@ export function InputScreen({ text, setText, analyze, back }: { text: string; se
         <Text style={{ color: selected ? C.purple : C.muted, fontSize: 13, fontWeight: selected ? '600' : '400' }}>{tag}</Text>
       </Pressable>;
     })}</View>
-    <View style={{ alignItems: 'center', marginVertical: 26 }}><View style={{ padding: 12, borderRadius: 90, borderWidth: 1, borderColor: '#EFEBFF', backgroundColor: '#F8F6FF' }}><Pressable accessibilityRole="button" accessibilityLabel={state.isRecording ? '녹음 종료 및 음성 인식' : '음성 입력 시작'} disabled={busy} onPress={() => void record()}><LinearGradient colors={state.isRecording ? ['#EE9BAF', '#B397F3'] : ['#9480FF', '#76B4FF']} style={{ width: 90, height: 90, borderRadius: 50, alignItems: 'center', justifyContent: 'center' }}>{busy ? <ActivityIndicator color="white" /> : <Icon name={state.isRecording ? 'stop' : 'mic'} size={42} color="white" />}</LinearGradient></Pressable></View><Text style={[s.small, { color: C.purple, marginTop: 14 }]}>{state.isRecording ? `남은 시간 ${Math.max(0, 60 - Math.floor(state.durationMillis / 1000))}초 · 누르면 종료` : busy ? '목소리를 글로 옮기고 있어요…' : '음성으로도 입력할 수 있어요. · 최대 60초'}</Text></View>
+    <View style={{ alignItems: 'center', marginVertical: 26 }}><View style={{ padding: 12, borderRadius: 90, borderWidth: 1, borderColor: '#EFEBFF', backgroundColor: '#F8F6FF' }}><Pressable accessibilityRole="button" accessibilityLabel={state.isRecording ? '녹음 종료 및 음성 인식' : '음성 입력 시작'} disabled={busy} onPress={() => void record()}><LinearGradient colors={state.isRecording ? ['#EE9BAF', '#B397F3'] : ['#9480FF', '#76B4FF']} style={{ width: 90, height: 90, borderRadius: 50, alignItems: 'center', justifyContent: 'center' }}>{busy ? <ActivityIndicator color="white" /> : <Icon name={state.isRecording ? 'stop' : 'mic'} size={42} color="white" />}</LinearGradient></Pressable></View><Text style={[s.small, { color: C.purple, marginTop: 14 }]}>{busy ? status : state.isRecording ? `남은 시간 ${Math.max(0, 60 - Math.floor(state.durationMillis / 1000))}초 · 누르면 종료` : '음성으로도 입력할 수 있어요. · 최대 60초'}</Text></View>
     {!!notice && <Text accessibilityLiveRegion="polite" style={[s.small, { color: '#8B6092', marginBottom: 15 }]}>{notice}</Text>}
     <View style={{ flex: 1 }} /><Button title="내 마음 분석하기  ›" disabled={!text.trim() || busy || state.isRecording} onPress={analyze} />
     {cloudMode && <Text style={[s.small, { textAlign: 'center', fontSize: 11, marginTop: 14 }]}>분석을 위해 입력 내용이 OpenAI로 전송됩니다.{ '\n' }결과는 저장 버튼을 누른 경우에만 기록에 남아요.</Text>}
@@ -227,8 +193,19 @@ export function Profile({ stage, library, settings, saveName, openRecords, logou
   </>;
 }
 
-export type Mix = { title: string; reason: string; songs: Track[] };
-export function MixDetail({ mix, back, play, save, saved, busy, liked, toggle }: { mix: Mix; back: () => void; play: (t: Track) => void; save: () => void; saved: boolean; busy: boolean; liked: string[]; toggle: (id: string) => void }) {
+export type Mix = { mood: Entry['primaryEmotion']; exhausted?: boolean; title: string; reason: string; songs: Track[] };
+export function MixDetail({ mix, add, more, back, play, save, saved, busy, liked, toggle }: { mix: Mix; add: (t: Track) => void; more: () => Promise<void>; back: () => void; play: (t: Track) => void; save: () => void; saved: boolean; busy: boolean; liked: string[]; toggle: (id: string) => void }) {
+  const requesting = useRef(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [recommendationError, setRecommendationError] = useState('');
+  async function loadMore() {
+    if (requesting.current) return;
+    requesting.current = true;
+    setLoadingMore(true); setRecommendationError('');
+    try { await more(); }
+    catch (error) { setRecommendationError(error instanceof Error ? error.message : '추천곡을 가져오지 못했어요. 다시 시도해주세요.'); }
+    finally { requesting.current = false; setLoadingMore(false); }
+  }
   const first = mix.songs[0];
   return <ScrollView style={mixStyles.page} contentContainerStyle={mixStyles.content}>
     <View style={mixStyles.nav}>
@@ -261,8 +238,13 @@ export function MixDetail({ mix, back, play, save, saved, busy, liked, toggle }:
         <Cover track={track} size={52} />
         <View style={mixStyles.details}><Text numberOfLines={2} style={mixStyles.songTitle}>{track.title}</Text><Text numberOfLines={1} style={mixStyles.artist}>{track.artist}</Text></View>
       </Pressable>
+      <IconButton label={track.title + ' 내 플레이리스트에 추가'} name="add-circle-outline" onPress={() => add(track)} />
       <IconButton label={liked.includes(track.id) ? '좋아요 취소' : '좋아요'} name={liked.includes(track.id) ? 'heart' : 'heart-outline'} color={liked.includes(track.id) ? '#7862BD' : '#766F81'} onPress={() => toggle(track.id)} />
     </View>)}
+    <View style={{ marginTop: 18 }}>
+      <Button title={mix.exhausted ? '추천곡을 모두 확인했어요' : '추천 더 받기'} subtle loading={loadingMore} disabled={mix.exhausted} onPress={() => void loadMore()} />
+      {!!recommendationError && <Text accessibilityLiveRegion="polite" style={s.small}>{recommendationError}</Text>}
+    </View>
   </ScrollView>;
 }
 

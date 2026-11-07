@@ -9,7 +9,7 @@ import { PlaylistPhotoPicker } from './src/PlaylistPhotoPicker';
 import { Player } from './src/Player';
 import { SettingsDialog } from './src/SettingsDialog';
 import { NicknameSetup } from './src/NicknameSetup';
-import { tracks, savedTracks, analyze, cloudMode, configReady, loadLibrary, persistLibrary, supabase, validateAnalysis } from './src/services';
+import { tracks, savedTracks, remember, initialSongs, moreSongs, analyze, cloudMode, configReady, loadLibrary, persistLibrary, supabase, validateAnalysis } from './src/services';
 import { Sprout } from './src/Sprout';
 import { attendanceThisMonth, sproutStage, emptyLibrary, localDate } from './src/domain';
 import type { Entry, Library, Track } from './src/domain';
@@ -44,6 +44,7 @@ function Main() {
   const [lastWebSong, setLastWebSong] = useState<Track | null>(null);
   const [song, setSong] = useState<Track | null>(null);
   const [playlistId, setPlaylistId] = useState<string | null>(null);
+  const [pickerTrack, setPickerTrack] = useState<Track | null>(null);
   const [playlistDialog, setPlaylistDialog] = useState<'create' | 'rename' | 'pick' | null>(null);
   const [playlistName, setPlaylistName] = useState('');
   const [photoLoading, setPhotoLoading] = useState(false);
@@ -138,10 +139,15 @@ function Main() {
     setSong(track);
     void mutate(lib => ({ ...lib, recent: [track.id, ...lib.recent.filter(id => id !== track.id)].slice(0, 20) }));
   }
+  function pickPlaylist(track: Track) {
+    remember([track]);
+    setPickerTrack(track);
+    setPlaylistDialog('pick');
+  }
   function createPlaylist() {
     if (!playlistName.trim() || photoLoading) return;
     const id = Crypto.randomUUID();
-    void mutate(lib => ({ ...lib, playlists: playlistDialog === 'rename' ? lib.playlists.map(p => p.id === playlistId ? { ...p, name: playlistName.trim(), coverUri: playlistPhoto } : p) : [{ id, name: playlistName.trim(), coverUri: playlistPhoto, trackIds: song ? [song.id] : [], createdAt: new Date().toISOString() }, ...lib.playlists] }), () => setPlaylistDialog(null));
+    void mutate(lib => ({ ...lib, playlists: playlistDialog === 'rename' ? lib.playlists.map(p => p.id === playlistId ? { ...p, name: playlistName.trim(), coverUri: playlistPhoto } : p) : [{ id, name: playlistName.trim(), coverUri: playlistPhoto, trackIds: pickerTrack ? [pickerTrack.id] : [], createdAt: new Date().toISOString() }, ...lib.playlists] }), () => setPlaylistDialog(null));
   }
   async function logout() {
     if (!supabase) return;
@@ -155,11 +161,14 @@ function Main() {
     if (loadError) return <View style={[s.content, { flex: 1, justifyContent: 'center', gap: 20 }]}><Text style={s.heading}>기록을 불러오지 못했어요</Text><Text style={s.body}>{loadError}</Text><Button title="다시 시도" onPress={() => setRetry(n => n + 1)} />{cloudMode && <Button title="로그아웃" onPress={() => void logout()} subtle />}</View>;
     if (!loaded) return <ActivityIndicator style={{ flex: 1 }} color={C.purple} />;
     if (cloudMode && !library.name.trim()) return <NicknameSetup busy={busy} back={() => void logout()} save={name => void mutate(lib => ({ ...lib, name }), () => setScreen('home'))} />;
-    if (song) return Platform.OS === 'web' ? null : <Player queue={queue} track={song} close={() => setSong(null)} favorite={library.favorites.includes(song.id)} toggleFavorite={() => favorite(song.id)} addToPlaylist={() => setPlaylistDialog('pick')} play={selectTrack} />;
+    if (song) return Platform.OS === 'web' ? null : <Player queue={queue} track={song} close={() => setSong(null)} favorite={library.favorites.includes(song.id)} toggleFavorite={() => favorite(song.id)} addToPlaylist={() => pickPlaylist(song!)} play={selectTrack} />;
     if (mix) {
       const ids = mix.songs.map(t => t.id);
       const saved = library.playlists.some(p => p.name === mix.title && p.trackIds.join() === ids.join());
-      return <MixDetail mix={mix} back={() => setMix(null)} play={play} liked={library.favorites} toggle={favorite} saved={saved} busy={busy}
+      return <MixDetail mix={mix} add={pickPlaylist} more={async () => {
+        const extra = await moreSongs(mix.mood, mix.title, mix.songs);
+        setMix(current => current === mix ? { ...current, songs: [...current.songs, ...extra], exhausted: extra.length === 0 } : current);
+      }} back={() => setMix(null)} play={play} liked={library.favorites} toggle={favorite} saved={saved} busy={busy}
         save={() => void mutate(lib => ({...lib,playlists:[{id:Crypto.randomUUID(),name:mix.title,trackIds:ids,createdAt:new Date().toISOString()},...lib.playlists]}))}/>;
     }
     switch (screen) {
@@ -169,11 +178,11 @@ function Main() {
       case 'analyzing': return <Analyzing stage={stage} />;
       case 'result': {
         const entry = selectedEntry || pending;
-        return entry && <Result stage={stage} result={entry} name={library.name} play={() => setMix({title:entry.musicMood,reason:entry.primaryEmotion+'의 마음에 어울리는 음악이에요.',songs:entry.tracks})} back={() => setScreen(selectedEntry ? 'records' : 'input')} saving={busy} stored={!!selectedEntry} save={() => void mutate(lib => ({ ...lib, entries: lib.entries.some(e => e.id === entry.id) ? lib.entries : [entry, ...lib.entries] }), () => { setPending(null); setText(''); setScreen('records'); })} remove={() => setDialog({ title: '이 기록을 삭제할까요?', message: '삭제한 기록은 되돌릴 수 없어요.', confirm: () => void mutate(lib => ({ ...lib, entries: lib.entries.filter(e => e.id !== entry.id) }), () => { setSelectedEntry(null); setScreen('records'); }) })} />;
+        return entry && <Result stage={stage} result={entry} name={library.name} play={() => setMix({title:entry.musicMood,reason:entry.primaryEmotion+'의 마음에 어울리는 음악이에요.',mood:entry.primaryEmotion,songs:initialSongs(entry.tracks,entry.primaryEmotion)})} back={() => setScreen(selectedEntry ? 'records' : 'input')} saving={busy} stored={!!selectedEntry} save={() => void mutate(lib => ({ ...lib, entries: lib.entries.some(e => e.id === entry.id) ? lib.entries : [entry, ...lib.entries] }), () => { setPending(null); setText(''); setScreen('records'); })} remove={() => setDialog({ title: '이 기록을 삭제할까요?', message: '삭제한 기록은 되돌릴 수 없어요.', confirm: () => void mutate(lib => ({ ...lib, entries: lib.entries.filter(e => e.id !== entry.id) }), () => { setSelectedEntry(null); setScreen('records'); }) })} />;
       }
       case 'records': return <Records entries={library.entries} graph={() => setScreen('graph')} open={e => { setSelectedEntry(e); setScreen('result'); }} />;
       case 'graph': return <Graph entries={library.entries} back={() => setScreen('records')} />;
-      case 'library': return <LibraryScreen library={library} play={play} toggleFavorite={favorite} create={() => { setPlaylistName(''); setPlaylistPhoto(undefined); setPlaylistDialog('create'); }} open={p => { setPlaylistId(p.id); setScreen('playlist'); }} />;
+      case 'library': return <LibraryScreen library={library} play={play} toggleFavorite={favorite} create={() => { setPickerTrack(null); setPlaylistName(''); setPlaylistPhoto(undefined); setPlaylistDialog('create'); }} open={p => { setPlaylistId(p.id); setScreen('playlist'); }} />;
       case 'playlist': return playlist ? <PlaylistDetail playlist={playlist} back={() => setScreen('library')} play={play} removeTrack={id => void mutate(lib => ({ ...lib, playlists: lib.playlists.map(p => p.id === playlistId ? { ...p, trackIds: p.trackIds.filter(x => x !== id) } : p) }))} rename={() => { setPlaylistName(playlist.name); setPlaylistPhoto(playlist.coverUri); setPlaylistDialog('rename'); }} remove={() => setDialog({ title: '플레이리스트를 삭제할까요?', confirm: () => void mutate(lib => ({ ...lib, playlists: lib.playlists.filter(p => p.id !== playlistId) }), () => setScreen('library')) })} /> : null;
       case 'profile': return <Profile settings={() => setSettingsOpen(true)} stage={stage} library={library} busy={busy} saveName={(name, done) => void mutate(lib => ({ ...lib, name }), done)} openRecords={() => setScreen('records')} logout={() => void logout()} clear={() => setDialog({ title: '체험 데이터를 모두 지울까요?', message: '이 기기에 저장한 감정 기록과 음악 목록이 삭제됩니다.', confirm: () => void mutate(() => emptyLibrary()) })} />;
     }
@@ -188,13 +197,13 @@ function Main() {
   return <View style={{ flex: 1, backgroundColor: '#EBEDF8', alignItems: 'center' }}><SafeAreaView style={{ flex: 1, width: '100%', maxWidth: 480, backgroundColor: screen === 'home' && loaded && !song && !onboarding ? '#F1EEFF' : C.bg }}><StatusBar style="dark" /><KeyboardAvoidingView style={{ flex: 1, backgroundColor: C.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>{content()}
     {lastWebSong && loaded && <View style={{ flex: 1, display: song ? 'flex' : 'none' }}>
       <Player queue={queue} track={lastWebSong} visible={!!song} close={() => setSong(null)} favorite={library.favorites.includes(lastWebSong.id)}
-        toggleFavorite={() => favorite(lastWebSong.id)} addToPlaylist={() => setPlaylistDialog('pick')} play={selectTrack} />
+        toggleFavorite={() => favorite(lastWebSong.id)} addToPlaylist={() => pickPlaylist(lastWebSong)} play={selectTrack} />
     </View>}</KeyboardAvoidingView>
     {showTabs && <View style={{ flexDirection: 'row', backgroundColor: '#FFFFFF', borderTopWidth: 1, borderColor: C.border, paddingTop: 9, paddingBottom: 8 }}>{tabs.map(tab => <Pressable key={tab.key} accessibilityRole="tab" accessibilityState={{ selected: active === tab.key }} accessibilityLabel={tab.title} onPress={() => setScreen(tab.key)} style={{ flex: 1, alignItems: 'center', gap: 5, paddingVertical: 6 }}><Icon name={active === tab.key ? tab.selected : tab.icon} color={active === tab.key ? C.purple : '#A0A5CD'} size={25} /><Text style={{ fontSize: 11, color: active === tab.key ? C.purple : C.muted }}>{tab.title}</Text></Pressable>)}</View>}
   </SafeAreaView>
   {settingsOpen && <SettingsDialog name={library.name} notificationsEnabled={library.notificationsEnabled ?? false} busy={busy} close={() => setSettingsOpen(false)} save={(name, notificationsEnabled) => void mutate(lib => ({ ...lib, name, notificationsEnabled }), () => setSettingsOpen(false))} />}
   <Modal visible={!!dialog} transparent animationType="fade" onRequestClose={() => setDialog(null)}><View style={s.sheetBackdrop}><View style={s.sheet}><Text style={s.heading}>{dialog?.title}</Text>{!!dialog?.message && <Text style={s.body}>{dialog.message}</Text>}<Button title={dialog?.confirmLabel || (dialog?.confirm ? '삭제하기' : '확인')} onPress={() => { const action = dialog?.confirm; setDialog(null); action?.(); }} />{dialog?.confirm && <Button title={dialog?.cancelLabel || "취소"} onPress={() => setDialog(null)} subtle />}</View></View></Modal>
-  <Modal visible={!!playlistDialog} transparent animationType="slide" onRequestClose={() => setPlaylistDialog(null)}><KeyboardAvoidingView style={s.sheetBackdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined}><View style={s.sheet}><View style={s.sectionRow}><Text style={s.heading}>{playlistDialog === 'pick' ? '곡을 어디에 담을까요?' : playlistDialog === 'rename' ? '플레이리스트 수정' : '새 플레이리스트'}</Text><IconButton name="close" label="닫기" onPress={() => setPlaylistDialog(null)} /></View>{playlistDialog === 'pick' ? <><ScrollView style={{ maxHeight: 280 }}>{library.playlists.map(p => <Pressable key={p.id} disabled={busy} onPress={() => song && void mutate(lib => ({ ...lib, playlists: lib.playlists.map(x => x.id === p.id ? { ...x, trackIds: [...new Set([...x.trackIds, song.id])] } : x) }), () => { setPlaylistDialog(null); setDialog({ title: '플레이리스트에 담았어요' }); })} style={{ paddingVertical: 16, borderBottomWidth: 1, borderColor: C.border }}><Text style={s.trackTitle}>{p.name}</Text><Text style={s.small}>{p.trackIds.length}곡</Text></Pressable>)}{!library.playlists.length && <Text style={s.body}>아직 플레이리스트가 없어요. 새로 만들어볼까요?</Text>}</ScrollView><Button title="＋ 새로 만들기" onPress={() => { setPlaylistName(''); setPlaylistPhoto(undefined); setPlaylistDialog('create'); }} subtle /></> : <><PlaylistPhotoPicker key={playlistDialog} value={playlistPhoto} onChange={setPlaylistPhoto} disabled={busy} onBusyChange={setPhotoLoading} /><TextInput accessibilityLabel="플레이리스트 이름" autoFocus style={s.input} placeholder="예) 오늘도 괜찮아" placeholderTextColor="#9A9AA6" maxLength={40} value={playlistName} onChangeText={setPlaylistName} /><Button title="저장" onPress={createPlaylist} loading={busy} disabled={!playlistName.trim() || photoLoading} /></>}</View></KeyboardAvoidingView></Modal>
+  <Modal visible={!!playlistDialog} transparent animationType="slide" onRequestClose={() => setPlaylistDialog(null)}><KeyboardAvoidingView style={s.sheetBackdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined}><View style={s.sheet}><View style={s.sectionRow}><Text style={s.heading}>{playlistDialog === 'pick' ? '곡을 어디에 담을까요?' : playlistDialog === 'rename' ? '플레이리스트 수정' : '새 플레이리스트'}</Text><IconButton name="close" label="닫기" onPress={() => setPlaylistDialog(null)} /></View>{playlistDialog === 'pick' ? <><ScrollView style={{ maxHeight: 280 }}>{library.playlists.map(p => <Pressable key={p.id} disabled={busy} onPress={() => pickerTrack && void mutate(lib => ({ ...lib, playlists: lib.playlists.map(x => x.id === p.id ? { ...x, trackIds: [...new Set([...x.trackIds, pickerTrack.id])] } : x) }), () => { setPlaylistDialog(null); setDialog({ title: '플레이리스트에 담았어요' }); })} style={{ paddingVertical: 16, borderBottomWidth: 1, borderColor: C.border }}><Text style={s.trackTitle}>{p.name}</Text><Text style={s.small}>{p.trackIds.length}곡</Text></Pressable>)}{!library.playlists.length && <Text style={s.body}>아직 플레이리스트가 없어요. 새로 만들어볼까요?</Text>}</ScrollView><Button title="＋ 새로 만들기" onPress={() => { setPlaylistName(''); setPlaylistPhoto(undefined); setPlaylistDialog('create'); }} subtle /></> : <><PlaylistPhotoPicker key={playlistDialog} value={playlistPhoto} onChange={setPlaylistPhoto} disabled={busy} onBusyChange={setPhotoLoading} /><TextInput accessibilityLabel="플레이리스트 이름" autoFocus style={s.input} placeholder="예) 오늘도 괜찮아" placeholderTextColor="#9A9AA6" maxLength={40} value={playlistName} onChangeText={setPlaylistName} /><Button title="저장" onPress={createPlaylist} loading={busy} disabled={!playlistName.trim() || photoLoading} /></>}</View></KeyboardAvoidingView></Modal>
   </View>;
 }
 

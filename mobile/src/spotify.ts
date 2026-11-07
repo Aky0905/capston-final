@@ -81,7 +81,11 @@ export async function startPlayback(device: string, id: string) {
 type Hit = { id: string; name: string; artists: { name: string }[]; album: { images: {url:string}[] } };
 const norm = (s: string) => s.normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
 export async function resolveTrack(track: Track): Promise<Track | null> {
-  if (track.spotifyId) return track;
+  if (track.spotifyId) {
+    if (track.thumbnail) return track;
+    const hit: Hit = await (await spotifyApi('tracks/' + encodeURIComponent(track.spotifyId))).json();
+    return { ...track, thumbnail: hit.album.images[0]?.url };
+  }
   const artist = track.artist.replace(/\s*- Topic$|VEVO$/i, '').trim();
   const title = track.title.replace(/\s*[([](?:official|공식|뮤직비디오|M\/V|MV)[^\])]*[\])]/gi, '').trim();
   const song = title.toLowerCase().startsWith(artist.toLowerCase() + ' - ') ? title.slice(artist.length + 3) : title;
