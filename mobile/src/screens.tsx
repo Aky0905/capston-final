@@ -6,6 +6,7 @@ import Svg, { Circle } from 'react-native-svg';
 import type { Analysis, Entry, Library, Playlist, Track } from './domain';
 import { calendarCells, localDate, moodColors, moodFaces, monthStats, streak, weeklyRecordDays } from './domain';
 import { cloudMode, tracks, savedTracks, transcribe } from './services';
+import { PasswordSettings } from './PasswordSettings';
 import { DailyEntriesPager } from './DailyEntriesPager';
 import { EmotionHistoryPreview } from './EmotionHistoryPreview';
 import { Button, C, Card, Cloud, Cover, Empty, Icon, IconButton, MoodChip, s, TrackRow } from './ui';
@@ -13,15 +14,17 @@ import { Button, C, Card, Cloud, Cover, Empty, Icon, IconButton, MoodChip, s, Tr
 export function Home({ library, input, play, openRecords, openEntry, settings, notifications }: { library: Library; input: () => void; openEntry: (entry: Entry) => void; play: (t: Track) => void; openRecords: () => void; settings: () => void; notifications: () => void }) {
   const last = [...tracks,...savedTracks].find(t => t.id === library.recent[0]);
   const days = streak(library.entries);
+  const [headerWidth, setHeaderWidth] = useState(480);
   return <ScrollView style={s.page} contentContainerStyle={{ paddingBottom: 26 }}>
-    <ImageBackground source={require('../assets/home-sky.png')} resizeMode="stretch" style={{ height: 345 }}>
+    <View onLayout={event => setHeaderWidth(event.nativeEvent.layout.width)} style={{ height: 345, overflow: 'hidden' }}>
+      <Image source={require('../assets/home-sky-lavender.png')} resizeMode="cover" style={{ position: 'absolute', bottom: 0, width: '100%', height: Math.max(345, headerWidth * 1086 / 1448) }} />
       <View style={{ padding: 25, paddingTop: 20 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}><Image source={require('../assets/logo.png')} style={{ width: 40, height: 34 }} resizeMode="contain" /><Text style={{ color: 'white', fontSize: 23, fontFamily: Platform.select({ ios: 'ArialRoundedMTBold', android: 'sans-serif-rounded', web: '"Arial Rounded MT Bold", "Trebuchet MS", sans-serif' }), fontWeight: Platform.OS === 'ios' ? 'normal' : '700', letterSpacing: 0.4 }}>Feelody</Text></View><View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, justifyContent: 'flex-end', marginLeft: 8 }}><Text style={{ color: 'white', fontSize: 13, flexShrink: 1 }}>{days ? `🔥 ${days}일 연속 기록 중` : '오늘도 반가워요'}</Text><IconButton name="notifications-outline" label="알림 보기" onPress={notifications} color="white" /><IconButton name="settings-outline" label="설정 열기" onPress={settings} color="white" /></View></View>
         <Text style={[s.title, { fontSize: 27, lineHeight: 38, marginTop: 25 }]}>{library.name}님,{ '\n' }지금 마음은 어떤가요?</Text>
         <Text style={[s.small, { color: '#455C89', marginTop: 10, fontSize: 14 }]}>어떤 감정이든 괜찮아요.{ '\n' }오늘의 마음에 어울리는 음악을 찾아볼까요?</Text>
         <View style={{ alignSelf: 'flex-end', marginTop: -9, marginRight: 4 }}><Cloud size={135} /></View>
       </View>
-    </ImageBackground>
+    </View>
     <View style={{ paddingHorizontal: 22, marginTop: -36 }}>
       <Pressable accessibilityRole="button" onPress={input}><Card style={{ flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 95, shadowColor: '#A9A1DB', shadowOpacity: 0.12, shadowRadius: 12, elevation: 2 }}><View style={{ backgroundColor: '#E9E3FF', width: 57, height: 57, borderRadius: 30, alignItems: 'center', justifyContent: 'center' }}><Icon name="happy-outline" size={35} color={C.purple} /></View><View style={{ flex: 1 }}><Text style={s.trackTitle}>지금, 내 감정 기록하기</Text><Text style={s.small}>오늘의 감정을 들려주세요.</Text></View><Icon name="arrow-forward" color={C.purple} size={21} /></Card></Pressable>
       {!cloudMode && <Text style={[s.small, { marginTop: 13, fontSize: 11 }]}>체험 모드 · 분석 예시이며 실제 AI 분석이 아닙니다.</Text>}
@@ -95,11 +98,13 @@ export function Analyzing() {
 }
 
 export function Result({ result, name, save, saving, back, play, stored, remove }: { result: Entry; name: string; save: () => void; saving: boolean; back: () => void; play: (t: Track) => void; stored: boolean; remove: () => void }) {
-  return <LinearGradient colors={['#FFF9E3', '#FFFDF4', '#FFFFFF']} style={s.page}><ScrollView contentContainerStyle={[s.content, { flexGrow: 1 }]}><View style={{ alignSelf: 'flex-start', marginLeft: -12 }}><IconButton name="chevron-back" label="뒤로" onPress={back} /></View><View style={{ alignItems: 'flex-end', marginTop: 5, marginBottom: -10 }}><Cloud size={140} /></View><Text style={s.title}>{name}님,</Text><Text style={[s.body, { fontSize: 19, lineHeight: 32, marginTop: 20, marginBottom: 24 }]}>{result.message}</Text>
+  return <LinearGradient colors={['#FFF9E3', '#FFFDF4', '#FFFFFF']} style={s.page}><ScrollView contentContainerStyle={[s.content, { flexGrow: 1 }]}><View style={{ alignSelf: 'flex-start', marginLeft: -12 }}><IconButton name="chevron-back" label="뒤로" onPress={back} /></View><View style={{ alignItems: 'flex-end', marginTop: 5, marginBottom: -10 }}><Cloud size={140} /></View><Text style={s.title}>{name}님,</Text>
+    {stored && <Text style={[s.small, { marginTop: 12 }]}>{result.localDate}의 마음</Text>}
+    <Text selectable style={[s.body, { marginTop: 12, color: '#615879' }]}>“{result.text}”</Text>
+    <Text style={[s.body, { fontSize: 19, lineHeight: 32, marginTop: 20, marginBottom: 24 }]}>{result.message}</Text>
     {result.source === 'demo' && <Text style={[s.small, { marginBottom: 14 }]}>체험용 분석 예시 · 실제 OpenAI 분석이 아닙니다.</Text>}
     {result.tracks[0] && <Pressable accessibilityRole="button" onPress={() => play(result.tracks[0]!)}><Card><Text style={s.small}>오늘의 마음을 위한 음악</Text><Text style={[s.heading,{marginVertical:8}]}>{result.musicMood} · {result.tracks.length}곡</Text><Text style={{color:C.purple}}>추천곡 보기  ›</Text></Card></Pressable>}
     <Card style={{ marginTop: 22, minHeight: 140 }}><Text style={[s.heading, { fontSize: 17 }]}>이런 감정이 느껴졌어요</Text><View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 9, marginTop: 20 }}>{[result.primaryEmotion, ...result.secondaryEmotions].map(mood => <MoodChip key={mood} mood={mood} />)}</View></Card>
-    {stored && <Card style={{ marginTop: 18 }}><Text style={s.small}>{result.localDate}의 마음</Text><Text style={[s.body, { marginTop: 8 }]}>{result.text}</Text></Card>}
     <Text style={[s.small, { marginTop: 18, marginBottom: 25, textAlign: 'center', fontSize: 11 }]}>감정 해석은 참고용이며 의료적 진단이 아닙니다.</Text><View style={{ flex: 1 }} />
     {stored ? <Button title="이 기록 삭제하기" onPress={remove} subtle disabled={saving} /> : <Button title="감정 기록 저장하기" onPress={save} loading={saving} />}
   </ScrollView></LinearGradient>;
@@ -176,6 +181,7 @@ export function Profile({ library, saveName, openRecords, logout, clear, busy }:
         </View>
         <Pressable accessibilityRole="button" onPress={openRecords} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingTop: 20, paddingBottom: 2 }}><Text style={[s.body, { fontSize: 15 }]}>나의 감정 기록 확인하기</Text><Icon name="chevron-forward" color={C.purple} size={21} /></Pressable>
       </Card>
+      {cloudMode && <PasswordSettings />}
       <Text style={[s.small, { marginVertical: 22, fontSize: 12 }]}>Feelody는 감정 기록과 음악 탐색을 돕는 서비스입니다. 의료적 진단이나 전문 심리치료를 제공하지 않습니다.</Text>
       <Button title={cloudMode ? '로그아웃' : '체험 데이터 모두 지우기'} onPress={cloudMode ? logout : clear} subtle disabled={busy} />
     </ScrollView>

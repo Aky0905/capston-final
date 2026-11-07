@@ -180,15 +180,34 @@ function Main() {
 
 function AuthScreen({ report }: { report: (error: unknown) => void }) {
   const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [busy, setBusy] = useState(false); const [signup, setSignup] = useState(false);
+  const [duplicate, setDuplicate] = useState(false);
   async function submit() {
     setBusy(true);
     try {
       if (signup) {
         const { data, error } = await supabase!.auth.signUp({ email: email.trim(), password });
+        const alreadyRegistered = error?.code === 'user_already_exists' ||
+          error?.code === 'email_exists' || error?.message.toLowerCase() === 'user already registered';
+        if (alreadyRegistered || (!error && !data.session && data.user?.identities?.length === 0)) {
+          setDuplicate(true);
+          return;
+        }
         if (error) throw error;
         if (!data.session) report(new Error('인증 메일을 확인한 뒤 로그인해주세요.'));
       } else { const { error } = await supabase!.auth.signInWithPassword({ email: email.trim(), password }); if (error) throw new Error('로그인하지 못했어요. 이메일과 비밀번호를 확인해주세요.'); }
     } catch (e) { report(e); } finally { setBusy(false); }
   }
-  return <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[s.content, { flexGrow: 1, justifyContent: 'center', gap: 18 }]}><View style={{ alignItems: 'center' }}><Cloud size={170} /><Text style={[s.title, { marginTop: 22 }]}>Feelody</Text><Text style={[s.body, { textAlign: 'center', marginVertical: 14 }]}>오늘의 마음에,{ '\n' }음악 한 곡을 건네다.</Text></View><TextInput accessibilityLabel="이메일" style={s.input} placeholder="이메일" keyboardType="email-address" autoCapitalize="none" autoComplete="email" value={email} onChangeText={setEmail} /><TextInput accessibilityLabel="비밀번호" style={s.input} placeholder="비밀번호 · 8자 이상" secureTextEntry autoComplete={signup ? 'new-password' : 'current-password'} value={password} onChangeText={setPassword} /><Button title={signup ? '회원가입' : '로그인'} onPress={() => void submit()} loading={busy} disabled={!email.includes('@') || password.length < (signup ? 8 : 1)} /><Button title={signup ? '이미 계정이 있어요' : '처음이에요 · 회원가입'} onPress={() => setSignup(!signup)} subtle disabled={busy} /><Text style={[s.small, { textAlign: 'center', fontSize: 11 }]}>감정 분석 시 입력한 글과 음성은 OpenAI로 전송됩니다.{ '\n' }저장한 기록은 본인 계정에서만 확인할 수 있어요.</Text></ScrollView>;
+  return <><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[s.content, { flexGrow: 1, justifyContent: 'center', gap: 18 }]}><View style={{ alignItems: 'center' }}><Cloud size={170} /><Text style={[s.title, { marginTop: 22 }]}>Feelody</Text><Text style={[s.body, { textAlign: 'center', marginVertical: 14 }]}>오늘의 마음에,{ '\n' }음악 한 곡을 건네다.</Text></View><TextInput accessibilityLabel="이메일" style={s.input} placeholder="이메일" keyboardType="email-address" autoCapitalize="none" autoComplete="email" value={email} onChangeText={setEmail} /><TextInput accessibilityLabel="비밀번호" style={s.input} placeholder="비밀번호 · 8자 이상" secureTextEntry autoComplete={signup ? 'new-password' : 'current-password'} value={password} onChangeText={setPassword} /><Button title={signup ? '회원가입' : '로그인'} onPress={() => void submit()} loading={busy} disabled={!email.includes('@') || password.length < (signup ? 8 : 1)} /><Button title={signup ? '이미 계정이 있어요' : '처음이에요 · 회원가입'} onPress={() => setSignup(!signup)} subtle disabled={busy} /><Text style={[s.small, { textAlign: 'center', fontSize: 11 }]}>감정 분석 시 입력한 글과 음성은 OpenAI로 전송됩니다.{ '\n' }저장한 기록은 본인 계정에서만 확인할 수 있어요.</Text></ScrollView>
+    <Modal visible={duplicate} transparent animationType="fade" onRequestClose={() => setDuplicate(false)}>
+      <View style={s.sheetBackdrop}><View style={s.sheet}>
+        <Text style={s.heading}>이미 가입된 이메일이에요</Text>
+        <Text style={s.body}>이 이메일로 만든 계정이 있어요. 기존 비밀번호로 로그인해주세요.</Text>
+        <Button title="로그인하기" onPress={() => {
+          setSignup(false);
+          setPassword('');
+          setDuplicate(false);
+        }} />
+        <Button title="다른 이메일로 가입하기" subtle onPress={() => setDuplicate(false)} />
+      </View></View>
+    </Modal></>;
 }
