@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, Image, ImageBackground, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, Image, ImageBackground, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { AudioModule, RecordingPresets, setAudioModeAsync, useAudioRecorder, useAudioRecorderState } from 'expo-audio';
 import Svg, { Circle } from 'react-native-svg';
@@ -192,19 +192,70 @@ export function Profile({ library, saveName, openRecords, logout, clear, busy }:
 
 export type Mix = { title: string; reason: string; songs: Track[] };
 export function MixDetail({ mix, back, play, save, saved, busy, liked, toggle }: { mix: Mix; back: () => void; play: (t: Track) => void; save: () => void; saved: boolean; busy: boolean; liked: string[]; toggle: (id: string) => void }) {
-  return <ScrollView style={s.page}>
-    <ImageBackground source={require('../assets/sky.png')} style={{padding:24}}>
+  const first = mix.songs[0];
+  return <ScrollView style={mixStyles.page} contentContainerStyle={mixStyles.content}>
+    <View style={mixStyles.nav}>
       <IconButton name="chevron-back" label="추천 목록 닫기" onPress={back} />
-      <View style={{alignItems:'flex-end'}}><Cloud size={100}/></View>
-      <Text style={s.title}>{mix.title}</Text>
-      <Text style={[s.body,{marginTop:10}]}>{mix.reason}</Text>
-    </ImageBackground>
-    <View style={s.content}><Button title={saved ? '내 플레이리스트에 저장됨' : '＋ 내 플레이리스트에 저장'} disabled={saved || busy} onPress={save}/>
-      <Text style={[s.heading,{marginTop:30,marginBottom:10}]}>추천곡 · {mix.songs.length}곡</Text>
-      {mix.songs.map(t => <TrackRow key={t.id} track={t} onPress={() => play(t)} action={<IconButton label={liked.includes(t.id)?'좋아요 취소':'좋아요'} name={liked.includes(t.id)?'heart':'heart-outline'} color={C.purple} onPress={() => toggle(t.id)}/>}/>)}
+      <Text style={mixStyles.navTitle}>추천 플레이리스트</Text>
     </View>
+
+    <LinearGradient colors={['#E6E2FF', '#E0ECFA', '#F7F1FB']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={mixStyles.hero}>
+      <View accessible={false} importantForAccessibility="no-hide-descendants" style={mixStyles.sleeve}>
+        <LinearGradient colors={['#29253F', '#55516D', '#242039']} style={mixStyles.disc}>
+          <View style={mixStyles.groove}><View style={mixStyles.label}><View style={mixStyles.spindle} /></View></View>
+        </LinearGradient>
+        <Image accessible={false} source={first?.thumbnail ? { uri: first.thumbnail } : require('../assets/sky.png')} style={mixStyles.art} />
+      </View>
+      <Text style={mixStyles.title}>{mix.title}</Text>
+      <Text style={mixStyles.reason}>{mix.reason}</Text>
+      <View style={mixStyles.actions}>
+        {first && <Pressable accessibilityRole="button" accessibilityLabel="첫 곡 재생 화면 열기" onPress={() => play(first)} style={mixStyles.play}>
+          <Icon name="play" size={16} color="white" /><Text style={mixStyles.playText}>첫 곡 듣기</Text>
+        </Pressable>}
+        <Pressable accessibilityRole="button" accessibilityLabel={saved ? '플레이리스트 저장됨' : '내 플레이리스트에 저장'} disabled={saved || busy} accessibilityState={{ disabled: saved || busy }} onPress={save} style={mixStyles.save}>
+          <Icon name={saved ? 'checkmark' : 'add'} size={18} color={C.ink} /><Text style={mixStyles.saveText}>{saved ? '저장됨' : '목록 저장'}</Text>
+        </Pressable>
+      </View>
+    </LinearGradient>
+
+    <View style={mixStyles.listTitle}><Text style={s.heading}>추천곡</Text><Text style={mixStyles.count}>{mix.songs.length}곡</Text></View>
+    {mix.songs.map(track => <View key={track.id} style={mixStyles.row}>
+      <Pressable accessibilityRole="button" accessibilityLabel={track.title + ' 재생 화면 열기'} onPress={() => play(track)} style={mixStyles.track}>
+        <Cover track={track} size={52} />
+        <View style={mixStyles.details}><Text numberOfLines={2} style={mixStyles.songTitle}>{track.title}</Text><Text numberOfLines={1} style={mixStyles.artist}>{track.artist}</Text></View>
+      </Pressable>
+      <IconButton label={liked.includes(track.id) ? '좋아요 취소' : '좋아요'} name={liked.includes(track.id) ? 'heart' : 'heart-outline'} color={liked.includes(track.id) ? '#7862BD' : '#766F81'} onPress={() => toggle(track.id)} />
+    </View>)}
   </ScrollView>;
 }
+
+const mixStyles = StyleSheet.create({
+  page: { flex: 1, backgroundColor: '#FFFDFF' },
+  content: { paddingHorizontal: 20, paddingBottom: 32 },
+  nav: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, marginLeft: -10 },
+  navTitle: { fontSize: 15, fontWeight: '600', color: C.ink },
+  hero: { borderRadius: 24, padding: 22, alignItems: 'center' },
+  sleeve: { width: 154, height: 108, marginVertical: 6, justifyContent: 'center' },
+  disc: { position: 'absolute', right: 0, width: 104, height: 104, borderRadius: 52, alignItems: 'center', justifyContent: 'center' },
+  groove: { width: 84, height: 84, borderRadius: 42, borderWidth: 1, borderColor: '#716D85', alignItems: 'center', justifyContent: 'center' },
+  label: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#C6B8DF', alignItems: 'center', justifyContent: 'center' },
+  spindle: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#383348' },
+  art: { width: 106, height: 106, borderRadius: 6, backgroundColor: '#AEBFE3', transform: [{ rotate: '-5deg' }] },
+  title: { marginTop: 14, color: C.ink, fontSize: 24, lineHeight: 32, fontWeight: '700', letterSpacing: -0.8, textAlign: 'center' },
+  reason: { marginTop: 6, fontSize: 14, lineHeight: 21, color: '#56536F', textAlign: 'center' },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginTop: 18 },
+  play: { minHeight: 44, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 22, backgroundColor: '#393052' },
+  playText: { color: 'white', fontWeight: '700' },
+  save: { minHeight: 44, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 22, backgroundColor: '#FFFFFFCC' },
+  saveText: { color: C.ink, fontWeight: '600' },
+  listTitle: { marginTop: 26, marginBottom: 6, flexDirection: 'row', gap: 8, alignItems: 'baseline' },
+  count: { fontSize: 13, color: '#6B637D' },
+  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: '#E6E2EC' },
+  track: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  details: { flex: 1 },
+  songTitle: { color: C.ink, fontSize: 16, lineHeight: 22, fontWeight: '600' },
+  artist: { marginTop: 3, color: '#6B637D', fontSize: 13 },
+});
 
 export function Notifications({ back }: { back: () => void }) {
   return <View style={s.page}>
