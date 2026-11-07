@@ -7,7 +7,6 @@ import type { Session } from '@supabase/supabase-js';
 import { Notifications, MixDetail, type Mix, Analyzing, Graph, Home, InputScreen, LibraryScreen, PlaylistDetail, Profile, Records, Result } from './src/screens';
 import { PlaylistPhotoPicker } from './src/PlaylistPhotoPicker';
 import { Player } from './src/Player';
-import { SettingsDialog } from './src/SettingsDialog';
 import { NicknameSetup } from './src/NicknameSetup';
 import { tracks, savedTracks, analyze, cloudMode, configReady, loadLibrary, persistLibrary, supabase, validateAnalysis } from './src/services';
 import { emptyLibrary, localDate } from './src/domain';
@@ -41,7 +40,6 @@ function Main() {
   const [playlistName, setPlaylistName] = useState('');
   const [photoLoading, setPhotoLoading] = useState(false);
   const [playlistPhoto, setPlaylistPhoto] = useState<string | undefined>();
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [dialog, setDialog] = useState<Dialog>(null);
   const playlist = library.playlists.find(p => p.id === playlistId);
   const error = (e: unknown) => setDialog({ title: '잠깐만요', message: e instanceof Error ? e.message : '요청을 처리하지 못했어요.' });
@@ -57,7 +55,7 @@ function Main() {
   }, []);
   useEffect(() => {
     let alive = true;
-    setSettingsOpen(false); setLoaded(false); setLoadError(''); setMix(null); setSong(null); setLastWebSong(null); setPending(null); setSelectedEntry(null); setScreen('home');
+    setLoaded(false); setLoadError(''); setMix(null); setSong(null); setLastWebSong(null); setPending(null); setSelectedEntry(null); setScreen('home');
     const blank = emptyLibrary(); current.current = blank; setLibrary(blank);
     if (cloudMode && !session) return;
     void loadLibrary().then(next => { if (alive) { current.current = next; setLibrary(next); setLoaded(true); } }).catch(e => { if (alive) setLoadError(e instanceof Error ? e.message : '기록을 불러오지 못했어요.'); });
@@ -65,7 +63,6 @@ function Main() {
   }, [session?.user.id, retry]);
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (settingsOpen) { setSettingsOpen(false); return true; }
       if (dialog) { setDialog(null); return true; }
       if (playlistDialog) { setPlaylistDialog(null); return true; }
       if (song) { setSong(null); return true; }
@@ -76,7 +73,7 @@ function Main() {
       setScreen(screen === 'graph' ? 'records' : screen === 'playlist' ? 'library' : 'home'); return true;
     });
     return () => subscription.remove();
-  }, [screen, song, mix, dialog, playlistDialog, settingsOpen, text]);
+  }, [screen, song, mix, dialog, playlistDialog, text]);
 
   async function mutate(update: (lib: Library) => Library, done?: () => void) {
     if (lock.current) return;
@@ -143,7 +140,7 @@ function Main() {
         save={() => void mutate(lib => ({...lib,playlists:[{id:Crypto.randomUUID(),name:mix.title,trackIds:ids,createdAt:new Date().toISOString()},...lib.playlists]}))}/>;
     }
     switch (screen) {
-      case 'home': return <Home library={library} input={() => { setText(''); setScreen('input'); }} play={play} openRecords={() => setScreen('records')} openEntry={entry => { setSelectedEntry(entry); setScreen('result'); }} settings={() => setSettingsOpen(true)} notifications={() => setScreen('notifications')} />;
+      case 'home': return <Home library={library} input={() => { setText(''); setScreen('input'); }} play={play} openRecords={() => setScreen('records')} openEntry={entry => { setSelectedEntry(entry); setScreen('result'); }} notifications={() => setScreen('notifications')} />;
       case 'notifications': return <Notifications back={() => setScreen('home')} />;
       case 'input': return <InputScreen text={text} setText={t => setText(t.slice(0, 500))} analyze={() => void runAnalysis()} back={confirmLeaveInput} />;
       case 'analyzing': return <Analyzing />;
@@ -172,7 +169,6 @@ function Main() {
     </View>}</KeyboardAvoidingView>
     {showTabs && <View style={{ flexDirection: 'row', backgroundColor: '#FFFFFF', borderTopWidth: 1, borderColor: C.border, paddingTop: 9, paddingBottom: 8 }}>{tabs.map(tab => <Pressable key={tab.key} accessibilityRole="tab" accessibilityState={{ selected: active === tab.key }} accessibilityLabel={tab.title} onPress={() => setScreen(tab.key)} style={{ flex: 1, alignItems: 'center', gap: 5, paddingVertical: 6 }}><Icon name={active === tab.key ? tab.selected : tab.icon} color={active === tab.key ? C.purple : '#A0A5CD'} size={25} /><Text style={{ fontSize: 11, color: active === tab.key ? C.purple : C.muted }}>{tab.title}</Text></Pressable>)}</View>}
   </SafeAreaView>
-  {settingsOpen && <SettingsDialog name={library.name} notificationsEnabled={library.notificationsEnabled ?? false} busy={busy} close={() => setSettingsOpen(false)} save={(name, notificationsEnabled) => void mutate(lib => ({ ...lib, name, notificationsEnabled }), () => setSettingsOpen(false))} />}
   <Modal visible={!!dialog} transparent animationType="fade" onRequestClose={() => setDialog(null)}><View style={s.sheetBackdrop}><View style={s.sheet}><Text style={s.heading}>{dialog?.title}</Text>{!!dialog?.message && <Text style={s.body}>{dialog.message}</Text>}<Button title={dialog?.confirmLabel || (dialog?.confirm ? '삭제하기' : '확인')} onPress={() => { const action = dialog?.confirm; setDialog(null); action?.(); }} />{dialog?.confirm && <Button title={dialog?.cancelLabel || "취소"} onPress={() => setDialog(null)} subtle />}</View></View></Modal>
   <Modal visible={!!playlistDialog} transparent animationType="slide" onRequestClose={() => setPlaylistDialog(null)}><KeyboardAvoidingView style={s.sheetBackdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined}><View style={s.sheet}><View style={s.sectionRow}><Text style={s.heading}>{playlistDialog === 'pick' ? '곡을 어디에 담을까요?' : playlistDialog === 'rename' ? '플레이리스트 수정' : '새 플레이리스트'}</Text><IconButton name="close" label="닫기" onPress={() => setPlaylistDialog(null)} /></View>{playlistDialog === 'pick' ? <><ScrollView style={{ maxHeight: 280 }}>{library.playlists.map(p => <Pressable key={p.id} disabled={busy} onPress={() => song && void mutate(lib => ({ ...lib, playlists: lib.playlists.map(x => x.id === p.id ? { ...x, trackIds: [...new Set([...x.trackIds, song.id])] } : x) }), () => { setPlaylistDialog(null); setDialog({ title: '플레이리스트에 담았어요' }); })} style={{ paddingVertical: 16, borderBottomWidth: 1, borderColor: C.border }}><Text style={s.trackTitle}>{p.name}</Text><Text style={s.small}>{p.trackIds.length}곡</Text></Pressable>)}{!library.playlists.length && <Text style={s.body}>아직 플레이리스트가 없어요. 새로 만들어볼까요?</Text>}</ScrollView><Button title="＋ 새로 만들기" onPress={() => { setPlaylistName(''); setPlaylistPhoto(undefined); setPlaylistDialog('create'); }} subtle /></> : <><PlaylistPhotoPicker key={playlistDialog} value={playlistPhoto} onChange={setPlaylistPhoto} disabled={busy} onBusyChange={setPhotoLoading} /><TextInput accessibilityLabel="플레이리스트 이름" autoFocus style={s.input} placeholder="예) 오늘도 괜찮아" placeholderTextColor="#9A9AA6" maxLength={40} value={playlistName} onChangeText={setPlaylistName} /><Button title="저장" onPress={createPlaylist} loading={busy} disabled={!playlistName.trim() || photoLoading} /></>}</View></KeyboardAvoidingView></Modal>
   </View>;

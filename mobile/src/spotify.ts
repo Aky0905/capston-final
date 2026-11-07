@@ -5,18 +5,28 @@ const tokenKey = 'feelody.spotify.session';
 type Session = { token: string; expires: number; refresh: string };
 const readSession = (): Session | null => JSON.parse(sessionStorage.getItem(tokenKey) || 'null');
 export const connected = () => !!readSession();
-export const disconnect = () => sessionStorage.removeItem(tokenKey);
+const listeners = new Set<() => void>();
+export function subscribeConnection(listener: () => void) {
+  listeners.add(listener);
+  return () => { listeners.delete(listener); };
+}
+export function disconnect() {
+  sessionStorage.removeItem(tokenKey);
+  listeners.forEach(listener => listener());
+}
 
 async function exchange(params: URLSearchParams, oldRefresh = '') {
   params.set('client_id', clientId);
   const response = await fetch('https://accounts.spotify.com/api/token', { method: 'POST', body: params });
   if (!response.ok) {
-    if (response.status === 400) disconnect();
+    if (response.status === 400 && oldRefresh && readSession()?.refresh === oldRefresh) disconnect();
     throw new Error('Spotify 연결을 다시 시도해주세요.');
   }
   const data = await response.json();
+  if (oldRefresh && readSession()?.refresh !== oldRefresh) throw new Error('스포티파이 연결이 변경됐어요.');
   const session: Session = { token: data.access_token, expires: Date.now() + data.expires_in * 1000, refresh: data.refresh_token || oldRefresh };
   sessionStorage.setItem(tokenKey, JSON.stringify(session));
+  listeners.forEach(listener => listener());
   return session.token;
 }
 let refreshing: Promise<string> | undefined;
