@@ -67,13 +67,9 @@ OpenAI Responses API에 `store:false`와 JSON Schema를 전달합니다. 이 옵
 
 ## 음악 재생
 
-YouTube Music의 오디오를 추출하지 않고 공식 YouTube IFrame 플레이어를 사용합니다. 플레이어를 화면에 표시하고 사용자가 재생을 시작합니다. 앱이 비활성화되거나 음악 화면이 닫히면 플레이어를 중지·제거합니다. 영상 제한·네트워크·지역에 따라 임베드가 실패할 수 있어 YouTube Music 외부 링크를 함께 제공합니다.
+웹에서는 Spotify Premium 계정을 연결해 Feelody 화면에서 전체곡을 재생합니다. 개발자 대시보드에서 Web API와 Web Playback SDK를 활성화하고 로컬 Redirect URI `http://127.0.0.1:8765/` 및 Vercel 배포 주소(끝에 `/` 포함)를 등록하세요. 개발 모드에서는 재생할 사용자를 앱의 허용 목록에 추가하세요. 브라우저에서 팝업을 허용해야 합니다. 공개 Client ID는 `EXPO_PUBLIC_SPOTIFY_CLIENT_ID`로 설정할 수 있습니다.
 
-웹 버전은 같은 사이트의 `/player.html`을 사용하므로 Vercel에도 플레이어 페이지가 함께 배포됩니다. 필요하면 `EXPO_PUBLIC_PLAYER_URL`로 다른 호스팅 주소를 지정할 수 있습니다. 모바일 앱에서는 자체 WebView HTML과 앱 식별자를 Referer의 기준으로 사용합니다. Expo Go는 독립 앱과 식별자·동작이 다를 수 있으므로 실제 APK/개발 빌드에서 최종 확인이 필요합니다.
-
-현재 음악 후보는 `mobile/src/catalog.json`과 `backend/src/main/resources/catalog.json`에 있는 시연용 4곡입니다. 같은 감정 태그에 맞는 곡을 고르는 방식이며 YouTube Music 계정의 전체 라이브러리를 검색·동기화하지 않습니다. 플레이리스트와 좋아요는 Feelody 데이터입니다. 표지는 제공받은 하늘 이미지를 재사용했으며 실제 음반 커버가 아닙니다.
-
-참고: [YouTube IFrame API](https://developers.google.com/youtube/iframe_api_reference), [플레이어 필수 요건](https://developers.google.com/youtube/terms/required-minimum-functionality), [개발자 정책](https://developers.google.com/youtube/terms/developer-policies).
+감정 분석에서 제안한 곡명과 아티스트를 Spotify 검색으로 확인합니다. 연결 전에는 후보가 표시되고, 재생 시 일치 여부를 검사합니다. 설치형 앱은 Spotify 링크를 엽니다. 기존 저장곡은 제목과 아티스트로 검색합니다.
 
 ## 검증과 현재 한계
 

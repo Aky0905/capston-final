@@ -6,9 +6,10 @@ import { createClient } from '@supabase/supabase-js';
 import type { Analysis, Library, Track } from './domain';
 import { emptyLibrary, MOODS } from './domain';
 import catalog from './catalog.json';
+import { connected, resolveTrack } from './spotify';
 
 export let savedTracks: Track[] = [];
-export function remember(items: Track[]) { savedTracks = [...new Map([...savedTracks,...items.filter(t=>t.id.startsWith("yt-"))].map(t=>[t.id,t])).values()]; }
+export function remember(items: Track[]) { savedTracks = [...new Map([...savedTracks,...items.filter(t => !tracks.some(c => c.id === t.id))].map(t=>[t.id,t])).values()]; }
 export const tracks = catalog as Track[];
 export const cloudMode = process.env.EXPO_PUBLIC_MODE === 'cloud';
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
@@ -84,7 +85,16 @@ async function request(path: string, body: string | FormData): Promise<any> {
   } finally { clearTimeout(timeout); }
 }
 export async function analyze(text: string): Promise<Analysis> {
-  if (cloudMode) { const result: Analysis = await request('analyze', JSON.stringify({ text })); remember(result.tracks); return result; }
+  if (cloudMode) {
+    const result: Analysis = await request('analyze', JSON.stringify({ text }));
+    if (Platform.OS === 'web' && connected()) {
+      const matches = await Promise.allSettled(result.tracks.map(resolveTrack));
+      const verified = matches.flatMap(match => match.status === 'fulfilled' && match.value ? [match.value] : []);
+      if (verified.length) result.tracks = verified;
+    }
+    remember(result.tracks);
+    return result;
+  }
   const mood = /불안|걱정|무서/.test(text) ? '불안' : /화나|짜증|분노/.test(text) ? '분노' : /우울|슬프|힘들|지쳐|지친/.test(text) ? '슬픔' : /설레|설렘|기대/.test(text) ? '설렘' : /기쁘|행복|신나|좋아/.test(text) ? '기쁨' : '평온';
   return { primaryEmotion: mood, secondaryEmotions: [], message: '오늘의 마음을 들려줘서 고마워요. 잠깐 숨을 고르고, 당신을 위한 음악과 함께 쉬어가도 괜찮아요.', musicMood: '포근한 위로', tracks: tracks.filter(t => t.moods.includes(mood)), source: 'demo' };
 }

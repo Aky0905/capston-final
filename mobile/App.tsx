@@ -9,7 +9,7 @@ import { PlaylistPhotoPicker } from './src/PlaylistPhotoPicker';
 import { Player } from './src/Player';
 import { SettingsDialog } from './src/SettingsDialog';
 import { NicknameSetup } from './src/NicknameSetup';
-import { tracks, analyze, cloudMode, configReady, loadLibrary, persistLibrary, supabase, validateAnalysis } from './src/services';
+import { tracks, savedTracks, analyze, cloudMode, configReady, loadLibrary, persistLibrary, supabase, validateAnalysis } from './src/services';
 import { emptyLibrary, localDate } from './src/domain';
 import type { Entry, Library, Track } from './src/domain';
 import { Button, C, Cloud, Icon, IconButton, IconName, s } from './src/ui';
@@ -33,6 +33,8 @@ function Main() {
   const [pending, setPending] = useState<Entry | null>(null);
   const [selectedEntry, setSelectedEntry] = useState<Entry | null>(null);
   const [mix,setMix] = useState<Mix | null>(null);
+  const [queue, setQueue] = useState<Track[]>([]);
+  const [lastWebSong, setLastWebSong] = useState<Track | null>(null);
   const [song, setSong] = useState<Track | null>(null);
   const [playlistId, setPlaylistId] = useState<string | null>(null);
   const [playlistDialog, setPlaylistDialog] = useState<'create' | 'rename' | 'pick' | null>(null);
@@ -55,7 +57,7 @@ function Main() {
   }, []);
   useEffect(() => {
     let alive = true;
-    setSettingsOpen(false); setLoaded(false); setLoadError(''); setMix(null); setSong(null); setPending(null); setSelectedEntry(null); setScreen('home');
+    setSettingsOpen(false); setLoaded(false); setLoadError(''); setMix(null); setSong(null); setLastWebSong(null); setPending(null); setSelectedEntry(null); setScreen('home');
     const blank = emptyLibrary(); current.current = blank; setLibrary(blank);
     if (cloudMode && !session) return;
     void loadLibrary().then(next => { if (alive) { current.current = next; setLibrary(next); setLoaded(true); } }).catch(e => { if (alive) setLoadError(e instanceof Error ? e.message : '기록을 불러오지 못했어요.'); });
@@ -104,6 +106,15 @@ function Main() {
   }
   const favorite = (id: string) => void mutate(lib => ({ ...lib, favorites: lib.favorites.includes(id) ? lib.favorites.filter(x => x !== id) : [...lib.favorites, id] }));
   function play(track: Track) {
+    const all = [...tracks, ...savedTracks];
+    const ids = screen === 'playlist' ? playlist?.trackIds : library.recent;
+    const ordered = mix?.songs ?? (screen === 'library' ? all.filter(t => library.favorites.includes(t.id))
+      : (ids || []).map(id => all.find(t => t.id === id)).filter((t): t is Track => !!t));
+    setQueue(ordered.some(t => t.id === track.id) ? ordered : [track, ...ordered]);
+    selectTrack(track);
+  }
+  function selectTrack(track: Track) {
+    if (Platform.OS === 'web') setLastWebSong(track);
     setSong(track);
     void mutate(lib => ({ ...lib, recent: [track.id, ...lib.recent.filter(id => id !== track.id)].slice(0, 20) }));
   }
@@ -124,7 +135,7 @@ function Main() {
     if (loadError) return <View style={[s.content, { flex: 1, justifyContent: 'center', gap: 20 }]}><Text style={s.heading}>기록을 불러오지 못했어요</Text><Text style={s.body}>{loadError}</Text><Button title="다시 시도" onPress={() => setRetry(n => n + 1)} />{cloudMode && <Button title="로그아웃" onPress={() => void logout()} subtle />}</View>;
     if (!loaded) return <ActivityIndicator style={{ flex: 1 }} color={C.purple} />;
     if (cloudMode && !library.name.trim()) return <NicknameSetup busy={busy} back={() => void logout()} save={name => void mutate(lib => ({ ...lib, name }), () => setScreen('home'))} />;
-    if (song) return <Player track={song} close={() => setSong(null)} favorite={library.favorites.includes(song.id)} toggleFavorite={() => favorite(song.id)} addToPlaylist={() => setPlaylistDialog('pick')} play={play} />;
+    if (song) return Platform.OS === 'web' ? null : <Player queue={queue} track={song} close={() => setSong(null)} favorite={library.favorites.includes(song.id)} toggleFavorite={() => favorite(song.id)} addToPlaylist={() => setPlaylistDialog('pick')} play={selectTrack} />;
     if (mix) {
       const ids = mix.songs.map(t => t.id);
       const saved = library.playlists.some(p => p.name === mix.title && p.trackIds.join() === ids.join());
@@ -154,7 +165,11 @@ function Main() {
     { key: 'home', title: '홈', icon: 'home-outline', selected: 'home' }, { key: 'records', title: '기록', icon: 'document-text-outline', selected: 'document-text' },
     { key: 'library', title: '플레이리스트', icon: 'musical-notes-outline', selected: 'musical-notes' }, { key: 'profile', title: '프로필', icon: 'person-outline', selected: 'person' }
   ];
-  return <View style={{ flex: 1, backgroundColor: '#EBEDF8', alignItems: 'center' }}><SafeAreaView style={{ flex: 1, width: '100%', maxWidth: 480, backgroundColor: screen === 'home' && loaded && !song && !onboarding ? '#96B4EA' : C.bg }}><StatusBar style={screen === 'home' && loaded && !song && !onboarding ? 'light' : 'dark'} /><KeyboardAvoidingView style={{ flex: 1, backgroundColor: C.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>{content()}</KeyboardAvoidingView>
+  return <View style={{ flex: 1, backgroundColor: '#EBEDF8', alignItems: 'center' }}><SafeAreaView style={{ flex: 1, width: '100%', maxWidth: 480, backgroundColor: screen === 'home' && loaded && !song && !onboarding ? '#96B4EA' : C.bg }}><StatusBar style={screen === 'home' && loaded && !song && !onboarding ? 'light' : 'dark'} /><KeyboardAvoidingView style={{ flex: 1, backgroundColor: C.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>{content()}
+    {lastWebSong && loaded && <View style={{ flex: 1, display: song ? 'flex' : 'none' }}>
+      <Player queue={queue} track={lastWebSong} visible={!!song} close={() => setSong(null)} favorite={library.favorites.includes(lastWebSong.id)}
+        toggleFavorite={() => favorite(lastWebSong.id)} addToPlaylist={() => setPlaylistDialog('pick')} play={selectTrack} />
+    </View>}</KeyboardAvoidingView>
     {showTabs && <View style={{ flexDirection: 'row', backgroundColor: '#FFFFFF', borderTopWidth: 1, borderColor: C.border, paddingTop: 9, paddingBottom: 8 }}>{tabs.map(tab => <Pressable key={tab.key} accessibilityRole="tab" accessibilityState={{ selected: active === tab.key }} accessibilityLabel={tab.title} onPress={() => setScreen(tab.key)} style={{ flex: 1, alignItems: 'center', gap: 5, paddingVertical: 6 }}><Icon name={active === tab.key ? tab.selected : tab.icon} color={active === tab.key ? C.purple : '#A0A5CD'} size={25} /><Text style={{ fontSize: 11, color: active === tab.key ? C.purple : C.muted }}>{tab.title}</Text></Pressable>)}</View>}
   </SafeAreaView>
   {settingsOpen && <SettingsDialog name={library.name} notificationsEnabled={library.notificationsEnabled ?? false} busy={busy} close={() => setSettingsOpen(false)} save={(name, notificationsEnabled) => void mutate(lib => ({ ...lib, name, notificationsEnabled }), () => setSettingsOpen(false))} />}
