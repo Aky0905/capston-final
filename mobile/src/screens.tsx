@@ -1,11 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, Image, ImageBackground, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useVoiceInput } from './useVoiceInput';
 import Svg, { Circle } from 'react-native-svg';
 import type { Analysis, Entry, Library, Playlist, Track } from './domain';
 import { calendarCells, localDate, moodColors, moodFaces, monthStats, streak, weeklyRecordDays } from './domain';
 import { cloudMode, tracks, savedTracks } from './services';
+import { authorize, connected, disconnect, subscribeConnection } from './spotify';
 import { PasswordSettings } from './PasswordSettings';
 import { DailyEntriesPager } from './DailyEntriesPager';
 import { EmotionHistoryPreview } from './EmotionHistoryPreview';
@@ -111,7 +113,8 @@ const calendarMoodColors: Record<string, string> = { 기쁨: '#F4C542', 슬픔: 
 
 export function Records({ entries, graph, open }: { entries: Entry[]; graph: () => void; open: (entry: Entry) => void }) {
   const now = new Date(); const [month, setMonth] = useState(new Date(now.getFullYear(), now.getMonth(), 1));
-  const [selected, setSelected] = useState(localDate(now));
+  const today = localDate(now);
+  const [selected, setSelected] = useState(today);
   const prefix = localDate(month).slice(0, 7);
   const cells = calendarCells(month.getFullYear(), month.getMonth());
   const selectedEntries = entries.filter(e => e.localDate === selected);
@@ -123,7 +126,16 @@ export function Records({ entries, graph, open }: { entries: Entry[]; graph: () 
       const date = day ? `${prefix}-${String(day).padStart(2, '0')}` : '';
       const dayEntries = entries.filter(e => e.localDate === date);
       const current = selected === date;
-      return <Pressable key={i} disabled={!day} accessibilityRole="button" accessibilityLabel={day ? `${date}, 기록 ${dayEntries.length}개` : undefined} onPress={() => setSelected(date)} style={{ width: `${100 / 7}%`, minHeight: 66, alignItems: 'center', paddingTop: 12, borderRadius: 20, backgroundColor: current ? '#F0ECFF' : 'transparent' }}><Text style={{ color: current ? C.purple : C.ink, fontSize: 16, fontWeight: current ? '700' : '400' }}>{day || ''}</Text><View style={{ flexDirection: 'row', gap: 2, marginTop: 9 }}>{dayEntries.slice(0, 3).map(e => <View key={e.id} style={{ width: 7, height: 7, borderRadius: 7, backgroundColor: calendarMoodColors[e.primaryEmotion] ?? moodColors[e.primaryEmotion] }} />)}</View></Pressable>;
+      const isToday = date === today;
+      return <Pressable key={i} disabled={!day} accessibilityRole="button" accessibilityState={{ selected: current }}
+        accessibilityLabel={day ? `${isToday ? '오늘, ' : ''}${date}, 기록 ${dayEntries.length}개` : undefined}
+        onPress={() => setSelected(date)}
+        style={{ width: `${100 / 7}%`, minHeight: 66, alignItems: 'center', paddingTop: 6, borderRadius: 20, backgroundColor: current ? '#F0ECFF' : 'transparent' }}>
+        <View style={{ minWidth: 32, minHeight: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center', backgroundColor: isToday ? '#6749B8' : 'transparent' }}>
+          <Text style={{ color: isToday ? 'white' : current ? C.purple : C.ink, fontSize: 16, fontWeight: isToday || current ? '700' : '400' }}>{day || ''}</Text>
+        </View>
+        <View style={{ flexDirection: 'row', gap: 2, marginTop: 3 }}>{dayEntries.slice(0, 3).map(e => <View key={e.id} style={{ width: 7, height: 7, borderRadius: 7, backgroundColor: calendarMoodColors[e.primaryEmotion] ?? moodColors[e.primaryEmotion] }} />)}</View>
+      </Pressable>;
     })}</View>
     <Card style={{ marginTop: 18 }}><View style={s.sectionRow}><Text style={[s.heading, { fontSize: 17 }]}>{Number(selected.slice(5, 7))}월 {Number(selected.slice(8))}일의 마음</Text><Text style={{ color: C.purple, fontSize: 12 }}>{selectedEntries.length}회 기록</Text></View><DailyEntriesPager key={selected + ':' + selectedEntries.map(entry => entry.id).join(',')} entries={selectedEntries} open={open} /></Card>
     <Pressable accessibilityRole="button" onPress={graph}><Card style={{ marginTop: 16 }}><View style={s.sectionRow}><Text style={[s.heading, { fontSize: 17 }]}>월간 감정 그래프</Text><Icon name="chevron-forward" size={19} color={C.purple} /></View><Text style={s.small}>기록한 마음을 한눈에 돌아보세요.</Text><View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 }}>{stats.length ? stats.map(x => <View key={x.mood} style={{ padding: 10, borderRadius: 16, backgroundColor: moodColors[x.mood] + '25', alignItems: 'center', minWidth: 60 }}><Text style={{ fontSize: 22, color: C.ink }}>{moodFaces[x.mood]}</Text><Text style={s.small}>{x.mood} {x.count}회</Text></View>) : <Text style={s.small}>첫 기록을 기다리고 있어요.</Text>}</View></Card></Pressable>
@@ -153,6 +165,42 @@ export function PlaylistDetail({ playlist, back, play, removeTrack, rename, remo
   return <ScrollView style={s.page} contentContainerStyle={s.content}><View style={[s.sectionRow, { marginHorizontal: -12 }]}><IconButton name="chevron-back" label="목록으로" onPress={back} /><IconButton name="create-outline" label="플레이리스트 수정" onPress={rename} /></View>{playlist.coverUri && <Image source={{ uri: playlist.coverUri }} accessibilityLabel={`${playlist.name} 표지`} style={{ width: 160, height: 160, borderRadius: 24, alignSelf: 'center', marginBottom: 24 }} resizeMode="cover" />}<Text style={s.title}>{playlist.name}</Text><Text style={[s.small, { marginTop: 10, marginBottom: 18 }]}>{playlist.trackIds.length}곡 · Feelody에 저장한 플레이리스트</Text>{playlist.trackIds.map(id => [...tracks,...savedTracks].find(t => t.id === id)).filter((t): t is Track => !!t).map(t => <TrackRow key={t.id} track={t} onPress={() => play(t)} action={<IconButton name="remove-circle-outline" label={`${t.title} 목록에서 제거`} onPress={() => removeTrack(t.id)} />} />)}{!playlist.trackIds.length && <Empty title="첫 곡을 추가해보세요" detail="음악 재생 화면에서 ‘플레이리스트’를 누르면 곡을 담을 수 있어요." />}<View style={{ marginTop: 30 }}><Button title="플레이리스트 삭제" onPress={remove} subtle /></View></ScrollView>;
 }
 
+function SpotifyConnectionButton() {
+  const linked = React.useSyncExternalStore(subscribeConnection, connected);
+  const [pending, setPending] = useState(false);
+  const [message, setMessage] = useState('');
+
+  const label = linked ? '스포티파이 연동 해제' : '스포티파이 연동하기';
+
+  async function toggleConnection() {
+    if (linked) {
+      disconnect();
+      setMessage('');
+      return;
+    }
+    setPending(true);
+    setMessage('');
+    try {
+      await authorize();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '스포티파이 연동을 다시 시도해주세요.');
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return <View style={{ gap: 8, marginBottom: 12 }}>
+    <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ busy: pending, disabled: pending }}
+      onPress={toggleConnection} disabled={pending}
+      style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+        minHeight: 50, borderRadius: 25, backgroundColor: '#191414', opacity: pressed || pending ? 0.8 : 1 })}>
+      <FontAwesome name="spotify" size={25} color="#1ED760" />
+      <Text style={{ color: 'white', fontWeight: '700', fontSize: 16 }}>{pending ? '연동 중…' : label}</Text>
+    </Pressable>
+    {!!message && <Text accessibilityRole="alert" style={s.small}>{message}</Text>}
+  </View>;
+}
+
 export function Profile({ stage, library, settings, saveName, openRecords, logout, clear, busy }: { stage: number; library: Library; settings: () => void; saveName: (name: string, done: () => void) => void; openRecords: () => void; logout: () => void; clear: () => void; busy: boolean }) {
   const [name, setName] = useState(library.name);
   const [editing, setEditing] = useState(false);
@@ -180,6 +228,7 @@ export function Profile({ stage, library, settings, saveName, openRecords, logou
       </Card>
       {cloudMode && <PasswordSettings />}
       <Text style={[s.small, { marginVertical: 22, fontSize: 12 }]}>Feelody는 감정 기록과 음악 탐색을 돕는 서비스입니다. 의료적 진단이나 전문 심리치료를 제공하지 않습니다.</Text>
+      {Platform.OS === 'web' && <SpotifyConnectionButton />}
       <Button title={cloudMode ? '로그아웃' : '체험 데이터 모두 지우기'} onPress={cloudMode ? logout : clear} subtle disabled={busy} />
     </ScrollView>
     <Modal visible={editing} transparent animationType="fade" onRequestClose={close}>

@@ -5,7 +5,7 @@ import { Image } from 'react-native';
 import type { PlayerProps } from './Player';
 import type { Track } from './domain';
 import { Icon, type IconName } from './ui';
-import { authorize, connected, resolveTrack, startPlayback, token } from './spotify';
+import { authorize, connected, subscribeConnection, resolveTrack, startPlayback, token } from './spotify';
 
 let sdk: Promise<void> | undefined;
 function loadSdk() {
@@ -21,7 +21,7 @@ function loadSdk() {
 const time = (ms: number) => Math.floor(ms / 60000) + ':' + String(Math.floor(ms / 1000) % 60).padStart(2, '0');
 
 export function Player({ track, queue, play, visible = true, close, favorite, toggleFavorite, addToPlaylist }: PlayerProps) {
-  const [linked, setLinked] = useState(connected);
+  const linked = React.useSyncExternalStore(subscribeConnection, connected);
   const [song, setSong] = useState<Track | null>(null);
   const [device, setDevice] = useState('');
   const [notice, setNotice] = useState('');
@@ -85,7 +85,7 @@ export function Player({ track, queue, play, visible = true, close, favorite, to
   async function action() {
     setBusy(true); setNotice('');
     try {
-      if (!linked) { await authorize(); setLinked(true); return; }
+      if (!linked) { await authorize(); return; }
       if (!song?.spotifyId || !device || !ref.current) return;
       await ref.current.activateElement();
       if (current && state && (!state.paused || state.position > 0)) await ref.current.togglePlay();
