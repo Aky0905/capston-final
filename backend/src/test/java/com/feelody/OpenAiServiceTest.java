@@ -57,6 +57,16 @@ class OpenAiServiceTest {
         assertEquals("오늘은 행복해요", service("key").transcribe(file).get("text"));
         assertTrue(request.get().contains("name=\"language\"\r\n\r\nko")); assertTrue(request.get().contains("test-stt"));
     }
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({
+        "audio/webm;codecs=opus, webm", "video/mp4;codecs=mp4a.40.2, mp4"
+    })
+    void acceptsBrowserRecordingWithCodec(String type, String extension) throws Exception {
+        response.set("{\"text\":\"안녕하세요\"}");
+        var file = new MockMultipartFile("file", "recording", type, new byte[]{1,2,3});
+        assertEquals("안녕하세요", service("key").transcribe(file).get("text"));
+        assertTrue(request.get().contains("filename=\"recording." + extension + "\""));
+    }
     @Test void rejectsUnsupportedUploadWithoutCallingUpstream() throws Exception {
         var file = new MockMultipartFile("file", "a.exe", "application/octet-stream", new byte[]{1});
         assertEquals(400, assertThrows(ApiException.class, () -> service("key").transcribe(file)).status); assertNull(request.get());
