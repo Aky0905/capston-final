@@ -2,32 +2,45 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, Image, ImageBackground, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { LinearGradient } from 'expo-linear-gradient';
-import { AudioModule, RecordingPresets, setAudioModeAsync, useAudioRecorder, useAudioRecorderState } from 'expo-audio';
+import { useVoiceInput } from './useVoiceInput';
 import Svg, { Circle } from 'react-native-svg';
 import type { Analysis, Entry, Library, Playlist, Track } from './domain';
 import { calendarCells, localDate, moodColors, moodFaces, monthStats, streak, weeklyRecordDays } from './domain';
-import { cloudMode, tracks, savedTracks, transcribe } from './services';
+import { cloudMode, tracks, savedTracks } from './services';
 import { authorize, connected, disconnect, subscribeConnection } from './spotify';
 import { PasswordSettings } from './PasswordSettings';
 import { DailyEntriesPager } from './DailyEntriesPager';
 import { EmotionHistoryPreview } from './EmotionHistoryPreview';
-import { Button, C, Card, Cloud, Cover, Empty, Icon, IconButton, MoodChip, s, TrackRow } from './ui';
+import { Button, C, Card, Cover, Empty, Icon, IconButton, MoodChip, s, TrackRow } from './ui';
 
-export function Home({ library, input, play, openRecords, openEntry, notifications }: { library: Library; input: () => void; openEntry: (entry: Entry) => void; play: (t: Track) => void; openRecords: () => void; notifications: () => void }) {
+import { Sprout } from './Sprout';
+
+export function Home({ stage, attendanceDays, library, input, play, openRecords, openEntry, notifications }: { stage: number; attendanceDays: number; library: Library; input: () => void; openEntry: (entry: Entry) => void; play: (t: Track) => void; openRecords: () => void; notifications: () => void }) {
   const last = [...tracks,...savedTracks].find(t => t.id === library.recent[0]);
   const days = streak(library.entries);
-  const [headerWidth, setHeaderWidth] = useState(480);
+  const progress = Math.min(attendanceDays, 20);
   return <ScrollView style={s.page} contentContainerStyle={{ paddingBottom: 26 }}>
-    <View onLayout={event => setHeaderWidth(event.nativeEvent.layout.width)} style={{ height: 345, overflow: 'hidden' }}>
-      <Image source={require('../assets/home-sky-lavender.png')} resizeMode="cover" style={{ position: 'absolute', bottom: 0, width: '100%', height: Math.max(345, headerWidth * 1086 / 1448) }} />
-      <View style={{ padding: 25, paddingTop: 20 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}><Image source={require('../assets/logo.png')} style={{ width: 40, height: 34 }} resizeMode="contain" /><Text style={{ color: 'white', fontSize: 23, fontFamily: Platform.select({ ios: 'ArialRoundedMTBold', android: 'sans-serif-rounded', web: '"Arial Rounded MT Bold", "Trebuchet MS", sans-serif' }), fontWeight: Platform.OS === 'ios' ? 'normal' : '700', letterSpacing: 0.4 }}>Feelody</Text></View><View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, justifyContent: 'flex-end', marginLeft: 8 }}><Text style={{ color: 'white', fontSize: 13, flexShrink: 1 }}>{days ? `🔥 ${days}일 연속 기록 중` : '오늘도 반가워요'}</Text><IconButton name="notifications-outline" label="알림 보기" onPress={notifications} color="white" /></View></View>
-        <Text style={[s.title, { fontSize: 27, lineHeight: 38, marginTop: 25 }]}>{library.name}님,{ '\n' }지금 마음은 어떤가요?</Text>
-        <Text style={[s.small, { color: '#455C89', marginTop: 10, fontSize: 14 }]}>어떤 감정이든 괜찮아요.{ '\n' }오늘의 마음에 어울리는 음악을 찾아볼까요?</Text>
-        <View style={{ alignSelf: 'flex-end', marginTop: -9, marginRight: 4 }}><Cloud size={135} /></View>
+    <LinearGradient colors={['#F1EEFF', '#FAF9FF', C.bg]} style={{ padding: 20, paddingBottom: 24 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}><Image source={require('../assets/logo.png')} style={{ width: 40, height: 34, tintColor: '#000000' }} resizeMode="contain" /><Text style={{ color: C.ink, fontSize: 23, fontFamily: Platform.select({ ios: 'ArialRoundedMTBold', android: 'sans-serif-rounded', web: '"Arial Rounded MT Bold", "Trebuchet MS", sans-serif' }), fontWeight: Platform.OS === 'ios' ? 'normal' : '700', letterSpacing: 0.4 }}>Feelody</Text></View><View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, justifyContent: 'flex-end', marginLeft: 8 }}><Text style={{ color: C.ink, fontSize: 13, flexShrink: 1 }}>{days ? `🔥 ${days}일 연속 기록 중` : '오늘도 반가워요'}</Text><IconButton name="notifications-outline" label="알림 보기" onPress={notifications} color={C.ink} /></View></View>
+      <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }}>
+        <View style={{ flex: 1 }}>
+          <Text style={[s.title, { fontSize: 24, lineHeight: 33 }]}>{library.name}님,{ '\n' }지금 마음은 어떤가요?</Text>
+          <Text style={[s.small, { marginTop: 12 }]}>오늘의 마음에 어울리는 음악을 찾아볼까요?</Text>
+        </View>
+        <View style={{ width: '45%', maxWidth: 190, aspectRatio: 1 }}>
+          <Sprout stage={stage} size="100%" />
+        </View>
       </View>
-    </View>
-    <View style={{ paddingHorizontal: 22, marginTop: -36 }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 7 }}>
+        <Text style={{ color: C.ink, fontWeight: '600' }}>새싹 성장 {stage}/4</Text>
+        <Text style={s.small}>{progress} / 20일</Text>
+      </View>
+      <View accessibilityRole="progressbar" accessibilityLabel="이번 달 새싹 성장률" accessibilityValue={{ min: 0, max: 20, now: progress }}
+        style={{ height: 5, borderRadius: 3, overflow: 'hidden', backgroundColor: '#E4DFF6' }}>
+        <View style={{ width: `${progress * 5}%`, height: '100%', borderRadius: 3, backgroundColor: C.purple }} />
+      </View>
+    </LinearGradient>
+    <View style={{ paddingHorizontal: 22 }}>
       <Pressable accessibilityRole="button" onPress={input}><Card style={{ flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 95, shadowColor: '#A9A1DB', shadowOpacity: 0.12, shadowRadius: 12, elevation: 2 }}><View style={{ backgroundColor: '#E9E3FF', width: 57, height: 57, borderRadius: 30, alignItems: 'center', justifyContent: 'center' }}><Icon name="happy-outline" size={35} color={C.purple} /></View><View style={{ flex: 1 }}><Text style={s.trackTitle}>지금, 내 감정 기록하기</Text><Text style={s.small}>오늘의 감정을 들려주세요.</Text></View><Icon name="arrow-forward" color={C.purple} size={21} /></Card></Pressable>
       {!cloudMode && <Text style={[s.small, { marginTop: 13, fontSize: 11 }]}>체험 모드 · 분석 예시이며 실제 AI 분석이 아닙니다.</Text>}
       <EmotionHistoryPreview entries={library.entries} openRecords={openRecords} openEntry={openEntry} input={input} />
@@ -37,41 +50,7 @@ export function Home({ library, input, play, openRecords, openEntry, notificatio
 }
 
 export function InputScreen({ text, setText, analyze, back }: { text: string; setText: (t: string) => void; analyze: () => void; back: () => void }) {
-  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
-  const state = useAudioRecorderState(recorder, 250);
-  const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState('');
-  const operation = useRef(false);
-  const mounted = useRef(true);
-  useEffect(() => () => { mounted.current = false; void setAudioModeAsync({ allowsRecording: false }); }, []);
-  async function stop() {
-    if (operation.current) return;
-    operation.current = true; setBusy(true);
-    try {
-      await recorder.stop();
-      await setAudioModeAsync({ allowsRecording: false });
-      if (!recorder.uri) throw new Error('녹음 파일이 없어요. 다시 시도해주세요.');
-      const result = await transcribe(recorder.uri);
-      if (!mounted.current) return;
-      if (result.length > 500) { setNotice('인식 결과가 500자를 넘었어요. 조금 짧게 다시 녹음해주세요.'); return; }
-      setText(result); setNotice('인식한 내용을 확인하고 자유롭게 수정해주세요.');
-    } catch (e) { if (mounted.current) setNotice(e instanceof Error ? e.message : '음성 인식에 실패했어요.'); }
-    finally { operation.current = false; if (mounted.current) setBusy(false); }
-  }
-  useEffect(() => { if (state.isRecording && state.durationMillis >= 60000) void stop(); }, [state.durationMillis, state.isRecording]);
-  async function record() {
-    if (state.isRecording) { await stop(); return; }
-    if (!cloudMode) { setNotice('음성 인식은 실제 연동 모드에서 사용할 수 있어요. 지금은 글로 입력해주세요.'); return; }
-    if (operation.current) return;
-    operation.current = true; setBusy(true); setNotice('');
-    try {
-      const permission = await AudioModule.requestRecordingPermissionsAsync();
-      if (!permission.granted) throw new Error('마이크 권한을 허용하면 음성으로 입력할 수 있어요.');
-      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
-      await recorder.prepareToRecordAsync(); recorder.record({ forDuration: 61 });
-    } catch (e) { setNotice(e instanceof Error ? e.message : '녹음을 시작하지 못했어요.'); }
-    finally { operation.current = false; setBusy(false); }
-  }
+  const { state, busy, notice, record, status } = useVoiceInput(setText);
   return <ScrollView style={s.page} keyboardShouldPersistTaps="handled" contentContainerStyle={[s.content, { flexGrow: 1 }]}>
     <View style={[s.sectionRow, { marginHorizontal: -12 }]}><IconButton name="chevron-back" label="뒤로" onPress={back} /><Text style={s.small}>마음을 기록하는 시간</Text><View style={{ width: 44 }} /></View>
     <Text style={s.title}>지금 마음을 들려주세요.</Text><Text style={[s.body, { marginTop: 14 }]}>기쁜 마음도, 복잡한 마음도 괜찮아요.{ '\n' }편하게 적어주세요.</Text>
@@ -86,28 +65,46 @@ export function InputScreen({ text, setText, analyze, back }: { text: string; se
         <Text style={{ color: selected ? C.purple : C.muted, fontSize: 13, fontWeight: selected ? '600' : '400' }}>{tag}</Text>
       </Pressable>;
     })}</View>
-    <View style={{ alignItems: 'center', marginVertical: 26 }}><View style={{ padding: 12, borderRadius: 90, borderWidth: 1, borderColor: '#EFEBFF', backgroundColor: '#F8F6FF' }}><Pressable accessibilityRole="button" accessibilityLabel={state.isRecording ? '녹음 종료 및 음성 인식' : '음성 입력 시작'} disabled={busy} onPress={() => void record()}><LinearGradient colors={state.isRecording ? ['#EE9BAF', '#B397F3'] : ['#9480FF', '#76B4FF']} style={{ width: 90, height: 90, borderRadius: 50, alignItems: 'center', justifyContent: 'center' }}>{busy ? <ActivityIndicator color="white" /> : <Icon name={state.isRecording ? 'stop' : 'mic'} size={42} color="white" />}</LinearGradient></Pressable></View><Text style={[s.small, { color: C.purple, marginTop: 14 }]}>{state.isRecording ? `남은 시간 ${Math.max(0, 60 - Math.floor(state.durationMillis / 1000))}초 · 누르면 종료` : busy ? '목소리를 글로 옮기고 있어요…' : '음성으로도 입력할 수 있어요. · 최대 60초'}</Text></View>
+    <View style={{ alignItems: 'center', marginVertical: 26 }}><View style={{ padding: 12, borderRadius: 90, borderWidth: 1, borderColor: '#EFEBFF', backgroundColor: '#F8F6FF' }}><Pressable accessibilityRole="button" accessibilityLabel={state.isRecording ? '녹음 종료 및 음성 인식' : '음성 입력 시작'} disabled={busy} onPress={() => void record()}><LinearGradient colors={state.isRecording ? ['#EE9BAF', '#B397F3'] : ['#9480FF', '#76B4FF']} style={{ width: 90, height: 90, borderRadius: 50, alignItems: 'center', justifyContent: 'center' }}>{busy ? <ActivityIndicator color="white" /> : <Icon name={state.isRecording ? 'stop' : 'mic'} size={42} color="white" />}</LinearGradient></Pressable></View><Text style={[s.small, { color: C.purple, marginTop: 14 }]}>{busy ? status : state.isRecording ? `남은 시간 ${Math.max(0, 60 - Math.floor(state.durationMillis / 1000))}초 · 누르면 종료` : '음성으로도 입력할 수 있어요. · 최대 60초'}</Text></View>
     {!!notice && <Text accessibilityLiveRegion="polite" style={[s.small, { color: '#8B6092', marginBottom: 15 }]}>{notice}</Text>}
     <View style={{ flex: 1 }} /><Button title="내 마음 분석하기  ›" disabled={!text.trim() || busy || state.isRecording} onPress={analyze} />
     {cloudMode && <Text style={[s.small, { textAlign: 'center', fontSize: 11, marginTop: 14 }]}>분석을 위해 입력 내용이 OpenAI로 전송됩니다.{ '\n' }결과는 저장 버튼을 누른 경우에만 기록에 남아요.</Text>}
   </ScrollView>;
 }
 
-export function Analyzing() {
+export function Analyzing({ stage }: { stage: number }) {
   const float = useRef(new Animated.Value(0)).current;
   useEffect(() => { const a = Animated.loop(Animated.sequence([Animated.timing(float, { toValue: -13, duration: 1500, useNativeDriver: true }), Animated.timing(float, { toValue: 0, duration: 1500, useNativeDriver: true })])); a.start(); return () => a.stop(); }, [float]);
-  return <LinearGradient colors={['#DEE4FF', '#FFF0F7', '#E2E8FF']} style={[s.page, { alignItems: 'center', justifyContent: 'center', padding: 30 }]}><Animated.View style={{ transform: [{ translateY: float }], marginBottom: 35 }}><Cloud size={210} /></Animated.View><Text style={[s.title, { fontSize: 24, textAlign: 'center', lineHeight: 36 }]}>지금, 당신의 감정을{ '\n' }살펴보고 있어요…</Text><Text style={[s.body, { marginTop: 16 }]}>조금만 기다려주세요.</Text><ActivityIndicator style={{ marginTop: 45 }} size="large" color="#A494F1" /><Text style={[s.small, { position: 'absolute', bottom: 48, textAlign: 'center' }]}>당신의 감정은 소중하니까,{ '\n' }Feelody가 함께할게요.</Text></LinearGradient>;
+  return <LinearGradient colors={['#DEE4FF', '#FFF0F7', '#E2E8FF']} style={[s.page, { alignItems: 'center', justifyContent: 'center', padding: 30 }]}><Animated.View style={{ transform: [{ translateY: float }], marginBottom: 35 }}><Sprout stage={stage} size={210} /></Animated.View><Text style={[s.title, { fontSize: 24, textAlign: 'center', lineHeight: 36 }]}>지금, 당신의 감정을{ '\n' }살펴보고 있어요…</Text><Text style={[s.body, { marginTop: 16 }]}>조금만 기다려주세요.</Text><ActivityIndicator style={{ marginTop: 45 }} size="large" color="#A494F1" /><Text style={[s.small, { position: 'absolute', bottom: 48, textAlign: 'center' }]}>당신의 감정은 소중하니까,{ '\n' }Feelody가 함께할게요.</Text></LinearGradient>;
 }
 
-export function Result({ result, name, save, saving, back, play, stored, remove }: { result: Entry; name: string; save: () => void; saving: boolean; back: () => void; play: (t: Track) => void; stored: boolean; remove: () => void }) {
-  return <LinearGradient colors={['#FFF9E3', '#FFFDF4', '#FFFFFF']} style={s.page}><ScrollView contentContainerStyle={[s.content, { flexGrow: 1 }]}><View style={{ alignSelf: 'flex-start', marginLeft: -12 }}><IconButton name="chevron-back" label="뒤로" onPress={back} /></View><View style={{ alignItems: 'flex-end', marginTop: 5, marginBottom: -10 }}><Cloud size={140} /></View><Text style={s.title}>{name}님,</Text>
-    {stored && <Text style={[s.small, { marginTop: 12 }]}>{result.localDate}의 마음</Text>}
-    <Text selectable style={[s.body, { marginTop: 12, color: '#615879' }]}>“{result.text}”</Text>
-    <Text style={[s.body, { fontSize: 19, lineHeight: 32, marginTop: 20, marginBottom: 24 }]}>{result.message}</Text>
+export function Result({ stage, result, name, save, saving, back, play, stored, remove }: { stage: number; result: Entry; name: string; save: () => void; saving: boolean; back: () => void; play: (t: Track) => void; stored: boolean; remove: () => void }) {
+  return <LinearGradient colors={['#EDE8FF', '#F7F5FF', '#FDFDFF']} style={s.page}>
+    <ScrollView contentContainerStyle={s.content}>
+      <View style={{ alignSelf: 'flex-start', marginLeft: -12 }}>
+        <IconButton name="chevron-back" label="뒤로" onPress={back} />
+      </View>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <View style={{ flex: 1, gap: 10 }}>
+          <Text style={s.small}>{stored ? result.localDate + '의 마음' : '오늘의 마음'}</Text>
+          <Text style={s.title}>{name}님께</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+            {[result.primaryEmotion, ...result.secondaryEmotions].map(mood => <MoodChip key={mood} mood={mood} />)}
+          </View>
+        </View>
+        <View style={{ width: '48%', maxWidth: 205, aspectRatio: 1 }}>
+          <Sprout stage={stage} size="100%" />
+        </View>
+      </View>
+      <Card style={{ padding: 22, marginTop: 8, marginBottom: 16 }}>
+        <Text selectable style={[s.body, { fontSize: 19, lineHeight: 31, color: C.ink }]}>{result.message}</Text>
+        <View style={{ marginTop: 18, borderLeftWidth: 3, borderColor: '#BCB0EE', paddingLeft: 12 }}>
+          <Text selectable style={[s.body, { fontSize: 15, lineHeight: 23, color: '#615879' }]}>“{result.text}”</Text>
+        </View>
+      </Card>
     {result.source === 'demo' && <Text style={[s.small, { marginBottom: 14 }]}>체험용 분석 예시 · 실제 OpenAI 분석이 아닙니다.</Text>}
     {result.tracks[0] && <Pressable accessibilityRole="button" onPress={() => play(result.tracks[0]!)}><Card><Text style={s.small}>오늘의 마음을 위한 음악</Text><Text style={[s.heading,{marginVertical:8}]}>{result.musicMood} · {result.tracks.length}곡</Text><Text style={{color:C.purple}}>추천곡 보기  ›</Text></Card></Pressable>}
-    <Card style={{ marginTop: 22, minHeight: 140 }}><Text style={[s.heading, { fontSize: 17 }]}>이런 감정이 느껴졌어요</Text><View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 9, marginTop: 20 }}>{[result.primaryEmotion, ...result.secondaryEmotions].map(mood => <MoodChip key={mood} mood={mood} />)}</View></Card>
-    <Text style={[s.small, { marginTop: 18, marginBottom: 25, textAlign: 'center', fontSize: 11 }]}>감정 해석은 참고용이며 의료적 진단이 아닙니다.</Text><View style={{ flex: 1 }} />
+    <Text style={[s.small, { marginTop: 18, marginBottom: 25, textAlign: 'center', fontSize: 11 }]}>감정 해석은 참고용이며 의료적 진단이 아닙니다.</Text>
     {stored ? <Button title="이 기록 삭제하기" onPress={remove} subtle disabled={saving} /> : <Button title="감정 기록 저장하기" onPress={save} loading={saving} />}
   </ScrollView></LinearGradient>;
 }
@@ -204,14 +201,14 @@ function SpotifyConnectionButton() {
   </View>;
 }
 
-export function Profile({ library, saveName, openRecords, logout, clear, busy }: { library: Library; saveName: (name: string, done: () => void) => void; openRecords: () => void; logout: () => void; clear: () => void; busy: boolean }) {
+export function Profile({ stage, library, settings, saveName, openRecords, logout, clear, busy }: { stage: number; library: Library; settings: () => void; saveName: (name: string, done: () => void) => void; openRecords: () => void; logout: () => void; clear: () => void; busy: boolean }) {
   const [name, setName] = useState(library.name);
   const [editing, setEditing] = useState(false);
   const close = () => { if (!busy) setEditing(false); };
   return <>
     <ScrollView style={s.page} contentContainerStyle={s.content}>
-      <Text style={s.title}>프로필</Text>
-      <View style={{ alignItems: 'center', marginVertical: 30 }}><Cloud size={135} /><Text style={[s.heading, { marginTop: 16 }]}>{library.name}님의 작은 쉼터</Text></View>
+      <View style={s.sectionRow}><Text style={s.title}>프로필</Text><IconButton name="settings-outline" label="설정 열기" onPress={settings} color={C.ink} /></View>
+      <View style={{ alignItems: 'center', marginVertical: 30 }}><Sprout stage={stage} size={158} /><Text style={[s.heading, { marginTop: 16 }]}>{library.name}님의 작은 쉼터</Text></View>
       <Card>
         <Text style={s.heading}>내 프로필</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 22 }}>
@@ -245,8 +242,19 @@ export function Profile({ library, saveName, openRecords, logout, clear, busy }:
   </>;
 }
 
-export type Mix = { title: string; reason: string; songs: Track[] };
-export function MixDetail({ mix, back, play, save, saved, busy, liked, toggle }: { mix: Mix; back: () => void; play: (t: Track) => void; save: () => void; saved: boolean; busy: boolean; liked: string[]; toggle: (id: string) => void }) {
+export type Mix = { mood: Entry['primaryEmotion']; exhausted?: boolean; title: string; reason: string; songs: Track[] };
+export function MixDetail({ mix, add, more, back, play, save, saved, busy, liked, toggle }: { mix: Mix; add: (t: Track) => void; more: () => Promise<void>; back: () => void; play: (t: Track) => void; save: () => void; saved: boolean; busy: boolean; liked: string[]; toggle: (id: string) => void }) {
+  const requesting = useRef(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [recommendationError, setRecommendationError] = useState('');
+  async function loadMore() {
+    if (requesting.current) return;
+    requesting.current = true;
+    setLoadingMore(true); setRecommendationError('');
+    try { await more(); }
+    catch (error) { setRecommendationError(error instanceof Error ? error.message : '추천곡을 가져오지 못했어요. 다시 시도해주세요.'); }
+    finally { requesting.current = false; setLoadingMore(false); }
+  }
   const first = mix.songs[0];
   return <ScrollView style={mixStyles.page} contentContainerStyle={mixStyles.content}>
     <View style={mixStyles.nav}>
@@ -279,8 +287,13 @@ export function MixDetail({ mix, back, play, save, saved, busy, liked, toggle }:
         <Cover track={track} size={52} />
         <View style={mixStyles.details}><Text numberOfLines={2} style={mixStyles.songTitle}>{track.title}</Text><Text numberOfLines={1} style={mixStyles.artist}>{track.artist}</Text></View>
       </Pressable>
+      <IconButton label={track.title + ' 내 플레이리스트에 추가'} name="add-circle-outline" onPress={() => add(track)} />
       <IconButton label={liked.includes(track.id) ? '좋아요 취소' : '좋아요'} name={liked.includes(track.id) ? 'heart' : 'heart-outline'} color={liked.includes(track.id) ? '#7862BD' : '#766F81'} onPress={() => toggle(track.id)} />
     </View>)}
+    <View style={{ marginTop: 18 }}>
+      <Button title={mix.exhausted ? '추천곡을 모두 확인했어요' : '추천 더 받기'} subtle loading={loadingMore} disabled={mix.exhausted} onPress={() => void loadMore()} />
+      {!!recommendationError && <Text accessibilityLiveRegion="polite" style={s.small}>{recommendationError}</Text>}
+    </View>
   </ScrollView>;
 }
 

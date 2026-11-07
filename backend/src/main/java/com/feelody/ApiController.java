@@ -17,6 +17,14 @@ public class ApiController {
     @PostMapping("/analyze") public Map<String, Object> analyze(@RequestHeader(value="Authorization", required=false) String token, @Valid @RequestBody AnalyzeRequest request) {
         limiter.check(auth.requireUser(token)); return ai.analyze(request.text().trim());
     }
+    public record RecommendationRequest(@NotBlank @Size(max = 20) String mood, @NotBlank @Size(max = 100) String atmosphere,
+                                        @jakarta.validation.constraints.NotNull @Size(max = 100) java.util.List<@NotBlank @Size(max = 400) String> excluded) {}
+    @PostMapping("/recommendations")
+    public java.util.List<Map<String, Object>> recommendations(@RequestHeader(value="Authorization", required=false) String token,
+                                                               @Valid @RequestBody RecommendationRequest request) {
+        limiter.check(auth.requireUser(token));
+        return ai.recommend(request.mood(), request.atmosphere(), request.excluded());
+    }
     @PostMapping(value="/transcribe", consumes="multipart/form-data") public Map<String, String> transcribe(@RequestHeader(value="Authorization", required=false) String token, @RequestPart("file") MultipartFile file) {
         limiter.check(auth.requireUser(token)); return ai.transcribe(file);
     }

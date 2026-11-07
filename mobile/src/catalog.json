@@ -2,5 +2,13 @@
   {"id":"sun","title":"Here Comes the Sun","artist":"The Beatles","videoId":"KQetemT1sWc","moods":["기쁨","설렘","평온"],"tone":"조금 더 빛나는 하루","color":"#FBE9BC"},
   {"id":"yellow","title":"Yellow","artist":"Coldplay","videoId":"yKNxeF4KMsY","moods":["슬픔","불안","평온"],"tone":"당신에게 전하는 위로","color":"#D8DDF8"},
   {"id":"beautiful","title":"Beautiful Day","artist":"U2","videoId":"co6WMzDOh1o","moods":["기쁨","분노","설렘"],"tone":"기분 좋은 시작","color":"#C4E3F2"},
-  {"id":"sunset","title":"Sunset Lover","artist":"Petit Biscuit","videoId":"4fQeaM62mOY","moods":["불안","평온","기타"],"tone":"마음이 쉬어가는 밤","color":"#E9D0E9"}
+  {"id":"sunset","title":"Sunset Lover","artist":"Petit Biscuit","videoId":"4fQeaM62mOY","moods":["불안","평온","기타"],"tone":"마음이 쉬어가는 밤","color":"#E9D0E9"},
+  {"id":"palette","title":"Palette","artist":"IU","moods":["평온","기쁨"],"tone":"감정 추천곡","color":"#D8DDF8"},
+  {"id":"night","title":"Through the Night","artist":"IU","moods":["슬픔","평온"],"tone":"감정 추천곡","color":"#D8DDF8"},
+  {"id":"dynamite","title":"Dynamite","artist":"BTS","moods":["기쁨","설렘"],"tone":"감정 추천곡","color":"#D8DDF8"},
+  {"id":"spring","title":"Spring Day","artist":"BTS","moods":["슬픔","기타"],"tone":"감정 추천곡","color":"#D8DDF8"},
+  {"id":"hype","title":"Hype Boy","artist":"NewJeans","moods":["기쁨","설렘"],"tone":"감정 추천곡","color":"#D8DDF8"},
+  {"id":"ditto","title":"Ditto","artist":"NewJeans","moods":["기타","불안"],"tone":"감정 추천곡","color":"#D8DDF8"},
+  {"id":"oort","title":"오르트구름","artist":"윤하","moods":["분노","기쁨"],"tone":"감정 추천곡","color":"#D8DDF8"},
+  {"id":"gift","title":"선물","artist":"멜로망스","moods":["설렘","평온"],"tone":"감정 추천곡","color":"#D8DDF8"}
 ]
