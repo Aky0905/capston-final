@@ -12,7 +12,7 @@ export function EmotionHistoryPreview({ entries, openRecords, openEntry, input }
   const days = weeklyRecordDays(entries);
   return <Card style={{ marginTop: 26, padding: 16 }}>
     <View style={s.sectionRow}>
-      <Text style={[s.heading, { fontSize: 18 }]}>나의 감정 기록</Text>
+      <Text style={[s.heading, { fontSize: 16 }]}>나의 감정 기록</Text>
       <Pressable accessibilityRole="button" accessibilityLabel="감정 기록 전체보기" onPress={openRecords} hitSlop={10}>
         <Text style={[s.small, { color: '#7772AE' }]}>전체보기 ›</Text>
       </Pressable>
@@ -23,7 +23,7 @@ export function EmotionHistoryPreview({ entries, openRecords, openEntry, input }
         return <Pressable key={entry.id} accessibilityRole="button" accessibilityLabel={`${month}월 ${day}일 ${entry.primaryEmotion} 기록 보기`} onPress={() => openEntry(entry)}
           style={{ flex: 1, minWidth: 0, alignItems: 'center', backgroundColor: backgrounds[index], borderRadius: 18, paddingVertical: 20, paddingHorizontal: 4 }}>
           <View style={{ marginBottom: 16 }}><EmotionFace mood={entry.primaryEmotion} /></View>
-          <Text style={[s.trackTitle, { fontSize: 17 }]}>{entry.primaryEmotion}</Text>
+          <Text style={[s.trackTitle, { fontSize: 15 }]}>{entry.primaryEmotion}</Text>
           <Text style={[s.small, { marginTop: 5 }]}>{month}월 {day}일</Text>
         </Pressable>;
       })}

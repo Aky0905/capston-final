@@ -1,13 +1,13 @@
 .feel-player { flex: 1; min-height: 0; overflow-y: auto; color: #25294c; background: radial-gradient(ellipse at 92% 8%, #daebfa 0%, transparent 50%), linear-gradient(165deg, #eae4fa 0%, #f5f1fb 48%, #fffdfd 90%); font-family: system-ui,sans-serif; scrollbar-width: thin; }
 .feel-player header,.fp-info,.fp-times,.fp-controls,.fp-next { display:flex; align-items:center; justify-content:space-between; }
-.feel-player header { padding:8px 18px; font-size:13px; font-weight:600; letter-spacing:.04em; }
-.fp-counter,.fp-times { color:#625c78; font-size:12px; font-variant-numeric:tabular-nums; }
+.feel-player header { padding:8px 18px; font-size:11px; font-weight:600; letter-spacing:.04em; }
+.fp-counter,.fp-times { color:#625c78; font-size:11px; font-variant-numeric:tabular-nums; }
 .fp-counter { min-width:44px; text-align:center; }
 .fp-body { padding:12px clamp(20px,7%,36px) 28px; }
 .fp-cover { width:min(100%,42vh); aspect-ratio:1; margin:0 auto; border-radius:16px; overflow:hidden; box-shadow:0 14px 35px #69588829, 0 2px 6px #69588819; background:#e7e3f5; }
 .fp-info { gap:12px; margin:25px 0 14px; }
-.fp-info h1 { margin:0; font-size:clamp(23px,5vw,32px); line-height:1.18; letter-spacing:-.035em; overflow-wrap:anywhere; }
-.fp-info p { margin:6px 0 0; font-size:16px; color:#66607d; }
+.fp-info h1 { margin:0; font-size:clamp(20px,5vw,28px); line-height:1.18; letter-spacing:-.035em; overflow-wrap:anywhere; }
+.fp-info p { margin:6px 0 0; font-size:14px; color:#66607d; }
 .fp-range { width:100%; margin:0; accent-color:#735cad; cursor:pointer; height:24px; }
 .fp-times { margin-top:0; }
 .fp-controls { margin:14px auto 20px; max-width:380px; }
@@ -20,6 +20,6 @@
 .feel-player :focus-visible { outline:2px solid #7658aa; outline-offset:3px; }
 .fp-next { background:#ffffffdf; border:1px solid #e1dbed; border-radius:16px; text-align:left; width:100%; gap:14px; padding:13px 15px; }
 .fp-next > span { display:grid; flex:1; gap:2px; min-width:0; }
-.fp-next small,.fp-next span span { font-size:12px; color:#69627b; }
-.fp-next strong { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font-size:15px; }
-.fp-notice { font-size:13px; color:#62546f; line-height:1.5; }
+.fp-next small,.fp-next span span { font-size:11px; color:#69627b; }
+.fp-next strong { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font-size:13px; }
+.fp-notice { font-size:11px; color:#62546f; line-height:1.5; }
