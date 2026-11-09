@@ -31,10 +31,10 @@ export function NicknameSetup({ busy, back, save }: { busy: boolean; back: () =>
 const styles = StyleSheet.create({
   page: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 14, paddingBottom: 44 },
   content: { flex: 1, justifyContent: 'center', paddingTop: 40, paddingBottom: 90 },
-  title: { fontSize: 27, fontWeight: '700', color: C.ink, textAlign: 'center', letterSpacing: -0.8 },
-  description: { fontSize: 15, lineHeight: 24, color: C.muted, textAlign: 'center', marginTop: 14 },
+  title: { fontSize: 24, fontWeight: '700', color: C.ink, textAlign: 'center', letterSpacing: -0.8 },
+  description: { fontSize: 13, lineHeight: 21, color: C.muted, textAlign: 'center', marginTop: 14 },
   field: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: '#DED6F6', borderRadius: 16, backgroundColor: '#FBF9FF', marginTop: 40, minHeight: 64, paddingHorizontal: 18, gap: 8 },
-  input: { flex: 1, minWidth: 0, paddingVertical: 18, fontSize: 16, color: C.ink },
-  count: { fontSize: 14, color: '#9B8FBB' },
+  input: { flex: 1, minWidth: 0, paddingVertical: 18, fontSize: 14, color: C.ink },
+  count: { fontSize: 12, color: '#9B8FBB' },
   complete: { marginTop: 54 },
 });

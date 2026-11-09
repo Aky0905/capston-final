@@ -24,7 +24,7 @@ export function SettingsDialog({ name, notificationsEnabled, busy, close, save }
           <View style={[s.input, { flexDirection: 'row', alignItems: 'center', paddingVertical: 0, gap: 10 }]}>
             <TextInput accessibilityLabel="변경할 닉네임" value={nickname} onChangeText={setNickname} maxLength={20} editable={!busy}
               placeholder="닉네임을 입력해주세요" placeholderTextColor={C.muted} autoCapitalize="none" autoCorrect={false}
-              returnKeyType="done" onSubmitEditing={submit} style={{ flex: 1, minWidth: 0, fontSize: 16, color: C.ink, paddingVertical: 16 }} />
+              returnKeyType="done" onSubmitEditing={submit} style={{ flex: 1, minWidth: 0, fontSize: 14, color: C.ink, paddingVertical: 16 }} />
             <Text style={s.small}>{nickname.length} / 20</Text>
           </View>
         </View>
